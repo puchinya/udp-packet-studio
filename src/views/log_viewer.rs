@@ -70,7 +70,7 @@ impl UdpStudioState {
                             LogExportFormat::Csv => {
                                 // Default to CSV
                                 let mut csv_content = String::new();
-                                csv_content.push_str("No,Timestamp,Direction,Address,Length,DataHex,DataText\n");
+                                csv_content.push_str("No,Timestamp,Direction,IP,Port,Length,DataHex,DataText\n");
                                 for (idx, entry) in self.logs.iter().enumerate() {
                                     let time_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S.%3f").to_string();
                                     let dir_str = match entry.direction {
@@ -79,12 +79,11 @@ impl UdpStudioState {
                                         LogDirection::SystemInfo => "INFO",
                                         LogDirection::SystemError => "ERROR",
                                     };
-                                    let addr_str = &entry.address_str;
                                     let len_str = entry.data.len().to_string();
                                     let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
                                     let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
-                                    csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
-                                        idx + 1, time_str, dir_str, addr_str, len_str, hex_str, plain_str));
+                                    csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
+                                        idx + 1, time_str, dir_str, entry.ip, entry.port, len_str, hex_str, plain_str));
                                 }
                                 std::fs::write(&path, csv_content)
                             }
@@ -122,7 +121,8 @@ impl UdpStudioState {
                 .column(Column::exact(45.0))  // No.
                 .column(Column::exact(100.0)) // Time
                 .column(Column::exact(80.0))  // Type
-                .column(Column::exact(140.0)) // Address
+                .column(Column::exact(110.0)) // IP Address
+                .column(Column::exact(55.0))  // Port
                 .column(Column::exact(60.0))  // Length
                 .column(Column::remainder());  // Info/Payload
 
@@ -133,7 +133,8 @@ impl UdpStudioState {
                     header.col(|ui| { ui.strong("No."); });
                     header.col(|ui| { ui.strong("Time"); });
                     header.col(|ui| { ui.strong("Type"); });
-                    header.col(|ui| { ui.strong("Address"); });
+                    header.col(|ui| { ui.strong("IP"); });
+                    header.col(|ui| { ui.strong("Port"); });
                     header.col(|ui| { ui.strong("Length"); });
                     header.col(|ui| { ui.strong("Info (Preview)"); });
                 })
@@ -153,6 +154,18 @@ impl UdpStudioState {
 
                         let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
                         let preview_truncated = &entry.preview_str;
+
+                        let ip_str = if entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError {
+                            "-".to_string()
+                        } else {
+                            entry.address.ip().to_string()
+                        };
+
+                        let port_str = if entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError {
+                            "-".to_string()
+                        } else {
+                            entry.address.port().to_string()
+                        };
 
                         row.set_selected(is_selected);
                         
@@ -181,7 +194,14 @@ impl UdpStudioState {
                             }
                         });
                         row.col(|ui| {
-                            let text = egui::RichText::new(&entry.address_str).monospace();
+                            let text = egui::RichText::new(&ip_str).monospace();
+                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                            if res.clicked() {
+                                clicked = true;
+                            }
+                        });
+                        row.col(|ui| {
+                            let text = egui::RichText::new(&port_str).monospace();
                             let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                             if res.clicked() {
                                 clicked = true;
@@ -351,7 +371,7 @@ mod tests {
         ];
 
         let mut csv_content = String::new();
-        csv_content.push_str("No,Timestamp,Direction,Address,Length,DataHex,DataText\n");
+        csv_content.push_str("No,Timestamp,Direction,IP,Port,Length,DataHex,DataText\n");
         for (idx, entry) in logs.iter().enumerate() {
             let time_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S.%3f").to_string();
             let dir_str = match entry.direction {
@@ -360,16 +380,15 @@ mod tests {
                 LogDirection::SystemInfo => "INFO",
                 LogDirection::SystemError => "ERROR",
             };
-            let addr_str = &entry.address_str;
             let len_str = entry.data.len().to_string();
             let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
             let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
-            csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
-                idx + 1, time_str, dir_str, addr_str, len_str, hex_str, plain_str));
+            csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
+                idx + 1, time_str, dir_str, entry.ip, entry.port, len_str, hex_str, plain_str));
         }
 
-        assert!(csv_content.contains("1,\"2026-06-13 12:00:00.000\",\"SENT\",\"127.0.0.1:9000\",5,\"48 65 6C 6C 6F\",\"Hello\""));
-        assert!(csv_content.contains("2,\"2026-06-13 12:00:00.000\",\"RECV\",\"192.168.1.50:5000\",4,\"10 81 00 01\""));
+        assert!(csv_content.contains("1,\"2026-06-13 12:00:00.000\",\"SENT\",\"127.0.0.1\",\"9000\",5,\"48 65 6C 6C 6F\",\"Hello\""));
+        assert!(csv_content.contains("2,\"2026-06-13 12:00:00.000\",\"RECV\",\"192.168.1.50\",\"5000\",4,\"10 81 00 01\""));
     }
 
     #[test]

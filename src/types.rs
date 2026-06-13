@@ -39,10 +39,17 @@ pub enum LogDirection {
     SystemError,
 }
 
+fn default_socket_addr() -> SocketAddr {
+    SocketAddr::from(([0, 0, 0, 0], 0))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
     pub timestamp: chrono::DateTime<Local>,
     pub direction: LogDirection,
+    pub ip: String,
+    pub port: String,
+    #[serde(skip, default = "default_socket_addr")]
     pub address: SocketAddr,
     #[serde(skip)]
     pub address_str: String,
@@ -59,6 +66,11 @@ impl LogEntry {
         data: Vec<u8>,
     ) -> Self {
         let address_str = address.to_string();
+        let (ip, port) = if direction == LogDirection::SystemInfo || direction == LogDirection::SystemError {
+            ("-".to_string(), "-".to_string())
+        } else {
+            (address.ip().to_string(), address.port().to_string())
+        };
         let preview_str = match direction {
             LogDirection::Sent | LogDirection::Received => {
                 let hex_str = data.iter()
@@ -85,6 +97,8 @@ impl LogEntry {
         Self {
             timestamp,
             direction,
+            ip,
+            port,
             address,
             address_str,
             data,
