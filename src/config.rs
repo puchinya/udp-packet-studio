@@ -1,5 +1,21 @@
-use crate::types::{Collection, PacketDefinition, PayloadType};
+use crate::types::{Collection, PacketDefinition, PayloadType, LogExportFormat};
 use serde::{Serialize, Deserialize};
+
+fn default_auto_save_enabled() -> bool {
+    false
+}
+
+fn default_auto_save_dir() -> String {
+    if let Some(home) = dirs::home_dir() {
+        home.join("UdpPacketStudio").join("Logs").to_string_lossy().into_owned()
+    } else {
+        "./Logs".to_string()
+    }
+}
+
+fn default_auto_save_format() -> LogExportFormat {
+    LogExportFormat::Csv
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedConfig {
@@ -8,6 +24,12 @@ pub struct SavedConfig {
     pub composer_target: String,
     pub composer_payload_type: PayloadType,
     pub composer_payload: String,
+    #[serde(default = "default_auto_save_enabled")]
+    pub auto_save_enabled: bool,
+    #[serde(default = "default_auto_save_dir")]
+    pub auto_save_dir: String,
+    #[serde(default = "default_auto_save_format")]
+    pub auto_save_format: LogExportFormat,
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
@@ -82,6 +104,9 @@ impl SavedConfig {
             composer_target: "127.0.0.1:9000".to_string(),
             composer_payload_type: PayloadType::Text,
             composer_payload: "Hello from Composer!".to_string(),
+            auto_save_enabled: false,
+            auto_save_dir: default_auto_save_dir(),
+            auto_save_format: LogExportFormat::Csv,
         }
     }
 

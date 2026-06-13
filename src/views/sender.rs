@@ -397,6 +397,14 @@ mod tests {
             multicast_input_addr: String::new(),
             multicast_input_interface: String::new(),
             inspector_protocol: crate::types::InspectorProtocol::Raw,
+            auto_save_enabled: false,
+            auto_save_dir: String::new(),
+            auto_save_format: crate::types::LogExportFormat::Csv,
+            settings_open: false,
+            tx_logger: {
+                let (tx, _) = channel();
+                tx
+            },
         }
     }
 

@@ -201,3 +201,14 @@ pub fn to_hex_dump(bytes: &[u8]) -> String {
     }
     result
 }
+
+#[derive(Debug, Clone)]
+pub enum LoggerCommand {
+    Log(LogEntry),
+    Configure {
+        enabled: bool,
+        dir: String,
+        format: LogExportFormat,
+        listener_addr: String,
+    },
+}
