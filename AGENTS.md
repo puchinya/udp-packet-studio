@@ -146,3 +146,17 @@ impl UdpStudioState {
 ```
 
 This keeps individual view scopes small and easy to navigate while maintaining a unified mutable application state context.
+
+---
+
+## 🧪 6. Testing Best Practices & Separation
+
+To align with Rust's best practices and keep the main codebase modular and clean:
+- **Unit Tests**: Place simple, low-level logic tests (e.g. data deserialization defaults, string formatting, parsing) in the corresponding module file or a nested `tests` submodule.
+- **Integration Tests**: Place all high-level integration tests (especially GUI tests like simulating pointer/mouse interactions) in a dedicated `tests/` directory at the project root (e.g. `tests/gui_tests.rs`).
+- **Binary/Library Splitting**: To allow integration tests to import the application modules, split the binary crate into a library crate (`src/lib.rs`) containing all the core UI, views, and worker logic, and a lightweight binary entrypoint (`src/main.rs`) that simply runs the library's main loop.
+- **GUI変更時のテスト実行義務 (GUI Modification Verification)**:
+  - レイアウトやコンポーネント（特に `src/views/` 内の各タブ画面やコントロールの配置）を変更した際は、**必ず** `cargo test` を実行し、GUI操作のエミュレーションテスト（リサイズ操作や、送信ボタンのクリックイベントテストなど）が壊れていないか確認してください。
+  - GUI変更によってボタンの位置やID、あるいは座標データ等の更新が必要になった場合は、追従して `tests/gui_tests.rs` 側のテストコードも適切にアップデートする必要があります。
+
+

@@ -399,43 +399,4 @@ impl UdpStudioState {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_yaml_serialization_roundtrip() {
-        let original = YamlCollection {
-            name: "Test Collection".to_string(),
-            requests: vec![
-                YamlRequest {
-                    name: "Get Operation".to_string(),
-                    target: "127.0.0.1:3610".to_string(),
-                    payload_type: PayloadType::Hex,
-                    payload: "10 81 00 01 05".to_string(),
-                },
-                YamlRequest {
-                    name: "Plain Text".to_string(),
-                    target: "192.168.1.100:9000".to_string(),
-                    payload_type: PayloadType::Text,
-                    payload: "Hello world".to_string(),
-                },
-            ],
-        };
-
-        let serialized = serde_yaml::to_string(&original).unwrap();
-        let deserialized: YamlCollection = serde_yaml::from_str(&serialized).unwrap();
-
-        assert_eq!(original, deserialized);
-    }
-
-    #[test]
-    fn test_yaml_deserialization_defaults() {
-        let yaml_str = "name: Empty Collection\n";
-        let deserialized: YamlCollection = serde_yaml::from_str(yaml_str).unwrap();
-
-        assert_eq!(deserialized.name, "Empty Collection");
-        assert!(deserialized.requests.is_empty());
-    }
-}
 

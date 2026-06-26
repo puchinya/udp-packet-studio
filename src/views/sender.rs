@@ -3,7 +3,7 @@ use crate::UdpStudioState;
 use crate::types::{PacketDefinition, PayloadType, generate_id};
 
 impl UdpStudioState {
-    pub(crate) fn generate_echonet_lite_hex(&self) -> Result<String, String> {
+    pub fn generate_echonet_lite_hex(&self) -> Result<String, String> {
         let ehd = "1081";
         
         let tid_clean: String = self.el_tid.chars().filter(|c| c.is_ascii_hexdigit()).collect();
@@ -355,83 +355,3 @@ impl UdpStudioState {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::mpsc::channel;
-    use crate::udp_worker::UdpWorker;
-
-    fn make_test_state() -> UdpStudioState {
-        let (tx, rx) = channel();
-        let worker = UdpWorker::spawn(tx, egui::Context::default());
-        UdpStudioState {
-            collections: Vec::new(),
-            selected_request_id: None,
-            composer_selected_collection_idx: 0,
-            composer_target: String::new(),
-            composer_payload_type: PayloadType::Text,
-            composer_payload: String::new(),
-            composer_name: String::new(),
-            logs: Vec::new(),
-            selected_log_idx: None,
-            filter_text: String::new(),
-            auto_scroll: true,
-            log_export_format: crate::types::LogExportFormat::Csv,
-            filtered_indices: Vec::new(),
-            listener_addr: String::new(),
-            is_listening: false,
-            bound_addr: None,
-            listener_error: None,
-            udp_worker: worker,
-            rx_event: rx,
-            el_tid: "0001".to_string(),
-            el_seoj: "05FF01".to_string(),
-            el_deoj_preset: 0,
-            el_deoj_custom: "013001".to_string(),
-            el_esv_preset: 0,
-            el_epc_preset: 0,
-            el_epc_custom: "80".to_string(),
-            el_edt: "30".to_string(),
-            el_show_helper: false,
-            multicast_groups: Vec::new(),
-            multicast_input_addr: String::new(),
-            multicast_input_interface: String::new(),
-            inspector_protocol: crate::types::InspectorProtocol::Raw,
-            auto_save_enabled: false,
-            auto_save_dir: String::new(),
-            auto_save_format: crate::types::LogExportFormat::Csv,
-            settings_open: false,
-            tx_logger: {
-                let (tx, _) = channel();
-                tx
-            },
-        }
-    }
-
-    #[test]
-    fn test_generate_echonet_lite_hex_get() {
-        let mut state = make_test_state();
-        state.el_tid = "000A".to_string();
-        state.el_seoj = "05FF01".to_string();
-        state.el_deoj_preset = 0;
-        state.el_esv_preset = 0;
-        state.el_epc_preset = 0;
-
-        let result = state.generate_echonet_lite_hex().unwrap();
-        assert_eq!(result, "10 81 00 0A 05 FF 01 01 30 01 62 01 80 00");
-    }
-
-    #[test]
-    fn test_generate_echonet_lite_hex_set() {
-        let mut state = make_test_state();
-        state.el_tid = "1234".to_string();
-        state.el_seoj = "05FF01".to_string();
-        state.el_deoj_preset = 0;
-        state.el_esv_preset = 1;
-        state.el_epc_preset = 0;
-        state.el_edt = "30".to_string();
-
-        let result = state.generate_echonet_lite_hex().unwrap();
-        assert_eq!(result, "10 81 12 34 05 FF 01 01 30 01 61 01 80 01 30");
-    }
-}

@@ -7,6 +7,7 @@ use std::sync::mpsc::{Sender, channel};
 use chrono::Local;
 use eframe::egui;
 
+#[derive(Debug)]
 pub enum UdpCommand {
     Bind(String),
     Send { target: String, data: Vec<u8> },
@@ -15,6 +16,7 @@ pub enum UdpCommand {
     LeaveMulticast { multi_addr: String, interface_addr: String },
 }
 
+#[derive(Debug)]
 pub enum UdpEvent {
     Bound(SocketAddr),
     Unbound,
@@ -242,3 +244,5 @@ impl UdpWorker {
         let _ = self.tx_cmd.send(cmd);
     }
 }
+
+

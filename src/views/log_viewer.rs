@@ -235,7 +235,7 @@ impl UdpStudioState {
 }
 
 // PCAP Helper: prepends raw ethernet, IPv4 and UDP headers to the UDP payloads
-fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_addr_str: &str) -> std::io::Result<()> {
+pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_addr_str: &str) -> std::io::Result<()> {
     use std::fs::File;
     use std::io::Write;
     use std::net::SocketAddr;
@@ -344,92 +344,4 @@ fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_addr_st
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::LogDirection;
-    use chrono::TimeZone;
-
-    #[test]
-    fn test_csv_formatting() {
-        let timestamp = chrono::Local.with_ymd_and_hms(2026, 6, 13, 12, 0, 0).unwrap();
-        let logs = vec![
-            LogEntry::new(
-                timestamp,
-                LogDirection::Sent,
-                "127.0.0.1:9000".parse().unwrap(),
-                b"Hello".to_vec(),
-            ),
-            LogEntry::new(
-                timestamp,
-                LogDirection::Received,
-                "192.168.1.50:5000".parse().unwrap(),
-                vec![0x10, 0x81, 0x00, 0x01],
-            ),
-        ];
-
-        let mut csv_content = String::new();
-        csv_content.push_str("No,Timestamp,Direction,IP,Port,Length,DataHex,DataText\n");
-        for (idx, entry) in logs.iter().enumerate() {
-            let time_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S.%3f").to_string();
-            let dir_str = match entry.direction {
-                LogDirection::Sent => "SENT",
-                LogDirection::Received => "RECV",
-                LogDirection::SystemInfo => "INFO",
-                LogDirection::SystemError => "ERROR",
-            };
-            let len_str = entry.data.len().to_string();
-            let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
-            let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
-            csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
-                idx + 1, time_str, dir_str, entry.ip, entry.port, len_str, hex_str, plain_str));
-        }
-
-        assert!(csv_content.contains("1,\"2026-06-13 12:00:00.000\",\"SENT\",\"127.0.0.1\",\"9000\",5,\"48 65 6C 6C 6F\",\"Hello\""));
-        assert!(csv_content.contains("2,\"2026-06-13 12:00:00.000\",\"RECV\",\"192.168.1.50\",\"5000\",4,\"10 81 00 01\""));
-    }
-
-    #[test]
-    fn test_write_pcap_helper() {
-        let temp_dir = std::env::temp_dir();
-        let path = temp_dir.join("test_output.pcap");
-
-        let timestamp = chrono::Local::now();
-        let logs = vec![
-            LogEntry::new(
-                timestamp,
-                LogDirection::Sent,
-                "127.0.0.1:9000".parse().unwrap(),
-                b"Hello".to_vec(),
-            ),
-            LogEntry::new(
-                timestamp,
-                LogDirection::Received,
-                "192.168.1.50:5000".parse().unwrap(),
-                vec![0x10, 0x81, 0x00, 0x01],
-            ),
-            LogEntry::new(
-                timestamp,
-                LogDirection::SystemInfo,
-                "0.0.0.0:0".parse().unwrap(),
-                b"System started".to_vec(),
-            ),
-        ];
-
-        let result = write_pcap_helper(&path, &logs, "127.0.0.1:9000");
-        assert!(result.is_ok());
-
-        // Verify file size and header presence
-        let bytes = std::fs::read(&path).unwrap();
-        assert!(bytes.len() > 24);
-        
-        // Check magic number
-        let magic = &bytes[0..4];
-        assert!(magic == &[0xa1, 0xb2, 0xc3, 0xd4] || magic == &[0xd4, 0xc3, 0xb2, 0xa1]);
-
-        // Clean up
-        let _ = std::fs::remove_file(path);
-    }
 }
