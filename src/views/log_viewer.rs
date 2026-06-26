@@ -6,6 +6,59 @@ use crate::types::{LogDirection, LogEntry, LogExportFormat};
 impl UdpStudioState {
     pub fn show_log_viewer(&mut self, ui: &mut egui::Ui) {
         let mut new_selection = self.selected_log_idx;
+        let mut scroll_to_row_idx = None;
+
+        let filtered_indices = &self.filtered_indices;
+
+        // Handle keyboard navigation (ArrowUp / ArrowDown)
+        if !filtered_indices.is_empty() && !ui.ctx().egui_wants_keyboard_input() {
+            let mut key_up = false;
+            let mut key_down = false;
+            ui.input(|i| {
+                if i.key_pressed(egui::Key::ArrowUp) {
+                    key_up = true;
+                }
+                if i.key_pressed(egui::Key::ArrowDown) {
+                    key_down = true;
+                }
+            });
+
+            if key_up || key_down {
+                let current_filtered_pos = self.selected_log_idx.and_then(|idx| {
+                    filtered_indices.iter().position(|&x| x == idx)
+                });
+
+                let next_filtered_pos = match current_filtered_pos {
+                    Some(pos) => {
+                        if key_up {
+                            if pos > 0 {
+                                Some(pos - 1)
+                            } else {
+                                Some(0)
+                            }
+                        } else {
+                            if pos + 1 < filtered_indices.len() {
+                                Some(pos + 1)
+                            } else {
+                                Some(filtered_indices.len() - 1)
+                            }
+                        }
+                    }
+                    None => {
+                        if key_up {
+                            Some(filtered_indices.len() - 1)
+                        } else {
+                            Some(0)
+                        }
+                    }
+                };
+
+                if let Some(pos) = next_filtered_pos {
+                    new_selection = Some(filtered_indices[pos]);
+                    scroll_to_row_idx = Some(pos);
+                }
+            }
+        }
         
         ui.vertical(|ui| {
             // Header toolbar
@@ -125,6 +178,10 @@ impl UdpStudioState {
                 .column(Column::exact(55.0))  // Port
                 .column(Column::exact(60.0))  // Length
                 .column(Column::remainder());  // Info/Payload
+
+            if let Some(row_pos) = scroll_to_row_idx {
+                table = table.scroll_to_row(row_pos, None);
+            }
 
             table = table.stick_to_bottom(self.auto_scroll);
 

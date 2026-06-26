@@ -678,10 +678,74 @@ impl eframe::App for MainApp {
                             ui.add_space(10.0);
                             ui.separator();
                             ui.add_space(10.0);
-                            if self.state.auto_save_enabled {
-                                ui.colored_label(egui::Color32::from_rgb(100, 255, 100), format!("💾 Auto-Save: Enabled ({:?})", self.state.auto_save_format));
+                            let auto_save_text = if self.state.auto_save_enabled {
+                                format!("💾 Auto-Save: Enabled ({:?})", self.state.auto_save_format)
                             } else {
-                                ui.colored_label(egui::Color32::from_rgb(150, 150, 150), "💾 Auto-Save: Disabled");
+                                "💾 Auto-Save: Disabled".to_string()
+                            };
+                            let auto_save_color = if self.state.auto_save_enabled {
+                                egui::Color32::from_rgb(100, 255, 100)
+                            } else {
+                                egui::Color32::from_rgb(150, 150, 150)
+                            };
+                            
+                            let label_resp = ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(auto_save_text)
+                                        .color(auto_save_color)
+                                )
+                                .sense(egui::Sense::click())
+                            );
+                            
+                            let label_resp = label_resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+                                .on_hover_text("Click to toggle auto-save");
+
+                            if label_resp.clicked() {
+                                self.state.auto_save_enabled = !self.state.auto_save_enabled;
+                                self.state.save_config();
+                                self.state.update_logger_config();
+                            }
+                            
+                            ui.add_space(10.0);
+                            ui.separator();
+                            ui.add_space(10.0);
+                            
+                            let folder_resp = ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new("📁 Open Log Folder")
+                                        .color(egui::Color32::from_rgb(140, 200, 255))
+                                )
+                                .sense(egui::Sense::click())
+                            );
+                            
+                            let folder_resp = folder_resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+                                .on_hover_text("Click to open auto-save directory");
+
+                            if folder_resp.clicked() {
+                                let dir = &self.state.auto_save_dir;
+                                if !dir.is_empty() {
+                                    let path = std::path::Path::new(dir);
+                                    let _ = std::fs::create_dir_all(path);
+                                    
+                                    #[cfg(target_os = "macos")]
+                                    {
+                                        let _ = std::process::Command::new("open")
+                                            .arg(path)
+                                            .spawn();
+                                    }
+                                    #[cfg(target_os = "windows")]
+                                    {
+                                        let _ = std::process::Command::new("explorer")
+                                            .arg(path)
+                                            .spawn();
+                                    }
+                                    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                                    {
+                                        let _ = std::process::Command::new("xdg-open")
+                                            .arg(path)
+                                            .spawn();
+                                    }
+                                }
                             }
                             
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
