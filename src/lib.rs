@@ -767,7 +767,7 @@ impl eframe::App for MainApp {
         if self.state.settings_open {
             let mut open = self.state.settings_open;
             let mut close_clicked = false;
-            egui::Window::new("⚙ Settings")
+            egui::Window::new("⚙ Preferences")
                 .open(&mut open)
                 .resizable(false)
                 .collapsible(false)
