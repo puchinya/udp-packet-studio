@@ -11,6 +11,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use chrono::Local;
 use eframe::egui;
 use egui_dock::{DockArea, DockState};
+use egui_dock::tab_viewer::OnCloseResponse;
 
 use udp_worker::{UdpWorker, UdpCommand, UdpEvent};
 use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand};
@@ -186,6 +187,22 @@ impl<'a> egui_dock::TabViewer for MyTabViewer<'a> {
             Tab::Inspector => self.state.show_inspector(ui),
             Tab::Multicast => self.state.show_multicast(ui),
         }
+    }
+
+    fn is_closeable(&self, _tab: &Self::Tab) -> bool {
+        false
+    }
+
+    fn closeable(&mut self, _tab: &mut Self::Tab) -> bool {
+        false
+    }
+
+    fn on_close(&mut self, _tab: &mut Self::Tab) -> OnCloseResponse {
+        OnCloseResponse::Ignore
+    }
+
+    fn allowed_in_windows(&self, _tab: &mut Self::Tab) -> bool {
+        false
     }
 }
 
@@ -664,6 +681,9 @@ impl eframe::App for MainApp {
                 // Main docking control area inside central panel
                 let mut viewer = MyTabViewer { state: &mut self.state };
                 DockArea::new(&mut self.dock_state)
+                    .show_close_buttons(false)
+                    .draggable_tabs(false)
+                    .tab_context_menus(false)
                     .show_inside(ui, &mut viewer);
             });
 
