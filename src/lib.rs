@@ -14,7 +14,7 @@ use egui_dock::{DockArea, DockState};
 use egui_dock::tab_viewer::OnCloseResponse;
 
 use udp_worker::{UdpWorker, UdpCommand, UdpEvent};
-use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand};
+use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand, AboutTab};
 use config::SavedConfig;
 use styling::setup_custom_styles;
 
@@ -71,6 +71,8 @@ pub struct UdpStudioState {
     pub auto_save_dir: String,
     pub auto_save_format: LogExportFormat,
     pub settings_open: bool,
+    pub about_open: bool,
+    pub about_tab: AboutTab,
     pub tx_logger: Sender<LoggerCommand>,
 }
 
@@ -451,6 +453,8 @@ impl MainApp {
             auto_save_dir: config.auto_save_dir,
             auto_save_format: config.auto_save_format,
             settings_open: false,
+            about_open: false,
+            about_tab: AboutTab::Info,
             tx_logger,
         };
 
@@ -629,9 +633,17 @@ impl eframe::App for MainApp {
                             
                             // Align settings button to the right end of title bar
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.button("⚙ Settings").clicked() {
-                                    self.state.settings_open = true;
-                                }
+                                ui.menu_button("⚙", |ui| {
+                                    if ui.button("Preferences...").clicked() {
+                                        self.state.settings_open = true;
+                                        ui.close();
+                                    }
+                                    if ui.button("About...").clicked() {
+                                        self.state.about_open = true;
+                                        self.state.about_tab = AboutTab::Info;
+                                        ui.close();
+                                    }
+                                });
                             });
                         });
                     });
@@ -762,6 +774,145 @@ impl eframe::App for MainApp {
                     });
                 });
             self.state.settings_open = open && !close_clicked;
+        }
+
+        // Draw the About dialog if open
+        if self.state.about_open {
+            let mut open = self.state.about_open;
+            let mut close_clicked = false;
+            egui::Window::new("About")
+                .open(&mut open)
+                .resizable(true)
+                .collapsible(false)
+                .default_size(egui::vec2(550.0, 450.0))
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(&ctx, |ui| {
+                    ui.vertical(|ui| {
+                        match self.state.about_tab {
+                            AboutTab::Info => {
+                                ui.vertical_centered(|ui| {
+                                    ui.heading("UDP Packet Studio");
+                                    ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
+                                    ui.add_space(8.0);
+                                    ui.label("A professional tool to compose, send, and inspect UDP packets.");
+                                    ui.add_space(12.0);
+                                });
+
+                                ui.label("Application License (LICENSE.md):");
+                                ui.add_space(4.0);
+                                
+                                let mut license_text = include_str!("../LICENSE.md").to_string();
+                                egui::ScrollArea::vertical()
+                                    .max_height(180.0)
+                                    .show(ui, |ui| {
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut license_text)
+                                                .font(egui::TextStyle::Monospace)
+                                                .desired_width(f32::INFINITY)
+                                                .interactive(false)
+                                        );
+                                    });
+
+                                ui.add_space(12.0);
+                                ui.horizontal(|ui| {
+                                    if ui.button("🌐 Show Open Source Licenses").clicked() {
+                                        self.state.about_tab = AboutTab::ThirdParty;
+                                    }
+                                });
+                            }
+                            AboutTab::ThirdParty => {
+                                ui.heading("Third Party Licenses");
+                                ui.add_space(4.0);
+                                ui.label("This software is built using the following open source libraries:");
+                                ui.add_space(8.0);
+
+                                egui::ScrollArea::vertical()
+                                    .max_height(250.0)
+                                    .show(ui, |ui| {
+                                        ui.collapsing("eframe / egui (MIT or Apache-2.0)", |ui| {
+                                            ui.label("Licensed under the MIT License or Apache License, Version 2.0.");
+                                            ui.add_space(4.0);
+                                            ui.small(
+"MIT License\n\
+\n\
+Copyright (c) 2018-2024 Emil Ernerfeldt\n\
+\n\
+Permission is hereby granted, free of charge, to any person obtaining a copy\n\
+of this software and associated documentation files (the \"Software\"), to deal\n\
+in the Software without restriction, including without limitation the rights\n\
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n\
+copies of the Software, and to permit persons to whom the Software is\n\
+furnished to do so, subject to the following conditions:\n\
+\n\
+The above copyright notice and this permission notice shall be included in all\n\
+copies or substantial portions of the Software."
+                                            );
+                                        });
+
+                                        ui.collapsing("egui_dock (MIT or Apache-2.0)", |ui| {
+                                            ui.label("Licensed under the MIT License or Apache License, Version 2.0.");
+                                            ui.add_space(4.0);
+                                            ui.small(
+"MIT License\n\
+\n\
+Copyright (c) 2022-2024 anhosh\n\
+\n\
+Permission is hereby granted, free of charge, to any person obtaining a copy\n\
+of this software and associated documentation files (the \"Software\"), to deal\n\
+in the Software without restriction, including without limitation the rights\n\
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n\
+copies of the Software, and to permit persons to whom the Software is\n\
+furnished to do so, subject to the following conditions:\n\
+\n\
+The above copyright notice and this permission notice shall be included in all\n\
+copies or substantial portions of the Software."
+                                            );
+                                        });
+
+                                        ui.collapsing("serde / serde_json / serde_yaml (MIT or Apache-2.0)", |ui| {
+                                            ui.label("Licensed under the MIT License or Apache License, Version 2.0.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright (c) 2017 Erick Tryzelaar and David Tolnay");
+                                        });
+
+                                        ui.collapsing("rfd (MIT)", |ui| {
+                                            ui.label("Licensed under the MIT License.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright (c) 2020 Szymon Lipiński");
+                                        });
+
+                                        ui.collapsing("chrono (MIT or Apache-2.0)", |ui| {
+                                            ui.label("Licensed under the MIT License or Apache License, Version 2.0.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright (c) 2014, Kang Seonghoon");
+                                        });
+
+                                        ui.collapsing("dirs (MIT or Apache-2.0)", |ui| {
+                                            ui.label("Licensed under the MIT License or Apache License, Version 2.0.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright (c) 2018 dirs-rs contributors");
+                                        });
+                                    });
+
+                                ui.add_space(12.0);
+                                if ui.button("⬅ Back to App Info").clicked() {
+                                    self.state.about_tab = AboutTab::Info;
+                                }
+                            }
+                        }
+
+                        ui.add_space(16.0);
+                        ui.separator();
+                        ui.add_space(8.0);
+                        
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close").clicked() {
+                                close_clicked = true;
+                            }
+                        });
+                    });
+                });
+            self.state.about_open = open && !close_clicked;
         }
 
         show_resize_handles(ui);

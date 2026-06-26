@@ -212,3 +212,9 @@ pub enum LoggerCommand {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AboutTab {
+    Info,
+    ThirdParty,
+}
+
