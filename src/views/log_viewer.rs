@@ -70,7 +70,6 @@ impl UdpStudioState {
                 }
 
                 ui.add_space(8.0);
-                ui.label("Format:");
                 egui::ComboBox::from_id_salt("log_export_format")
                     .selected_text(match self.log_export_format {
                         LogExportFormat::Csv => "CSV",

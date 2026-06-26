@@ -174,8 +174,8 @@ fn test_gui_triggered_communication() {
         });
     });
 
-    let click_pos = find_text_center(&full_output.shapes, "🚀 Send Packet")
-        .expect("Expected '🚀 Send Packet' text to be rendered on screen");
+    let click_pos = find_text_center(&full_output.shapes, "🚀 Send")
+        .expect("Expected '🚀 Send' text to be rendered on screen");
 
     // Frame 2: Move mouse to button and Press Down
     let mut raw_input2 = egui::RawInput {

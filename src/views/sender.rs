@@ -260,7 +260,7 @@ impl UdpStudioState {
                     let is_bound = self.is_listening;
                     let send_btn = ui.add_enabled(
                         is_bound, 
-                        egui::Button::new("🚀 Send Packet").min_size(egui::vec2(120.0, 32.0))
+                        egui::Button::new("🚀 Send").min_size(egui::vec2(120.0, 32.0))
                     );
                     
                     if send_btn.clicked() {

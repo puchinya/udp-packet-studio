@@ -234,7 +234,7 @@ impl UdpStudioState {
                         if ui.button("📂 Load to Composer").clicked() {
                             load_to_composer = Some((req.target.clone(), req.payload_type, req.payload.clone()));
                         }
-                        if ui.button("🚀 Fire").clicked() {
+                        if ui.button("🚀 Send").clicked() {
                             send_trigger = Some((req.target.clone(), req.payload_type, req.payload.clone()));
                         }
                     });
