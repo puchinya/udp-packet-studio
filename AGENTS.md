@@ -179,6 +179,8 @@ To align with Rust's best practices and keep the main codebase modular and clean
   - 新たなアセットを追加する際は、必ず [docs/third_party_licenses.md](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/docs/third_party_licenses.md)（または該当するライセンス管理用ドキュメント）に、対象ファイルのパス、入手元URL、著作権表記、および適用ライセンス（例: SIL OFL 1.1）を追記してください。必要に応じて、ライセンスの全文もドキュメント内に掲載してください。
 - **メインライセンスの更新**:
   - プロジェクト全体のライセンスファイル（[LICENSE.md](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/LICENSE.md) 等）に「Third-Party Components（サードパーティ・コンポーネント）」セクションを追加または更新し、サードパーティライセンスドキュメントへのリンクと参照説明を追記してください。
+- **UI (Aboutダイアログ) への反映**:
+  - [docs/third_party_licenses.md](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/docs/third_party_licenses.md) に記載されている外部オープンソース資産（フォント、アセットなど）は、アプリ内の「About」ダイアログの「Third Party Licenses」タブにおいても、他ライブラリと同様のアコーディオン（collapsing）レイアウトで著作権表示やライセンス条件を含めてください。
 
 
 

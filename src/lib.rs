@@ -1211,6 +1211,24 @@ copies or substantial portions of the Software."
                                             ui.add_space(4.0);
                                             ui.small("Copyright (c) 2018 dirs-rs contributors");
                                         });
+
+                                        ui.collapsing("Noto Sans JP (OFL-1.1)", |ui| {
+                                            ui.label("Licensed under the SIL Open Font License, Version 1.1.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. Noto is a trademark of Google Inc.");
+                                        });
+
+                                        ui.collapsing("Font Awesome 6 Free (Solid) (OFL-1.1)", |ui| {
+                                            ui.label("Licensed under the SIL Open Font License, Version 1.1.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright Fonticons, Inc.");
+                                        });
+
+                                        ui.collapsing("Noto Sans Symbols 2 (OFL-1.1)", |ui| {
+                                            ui.label("Licensed under the SIL Open Font License, Version 1.1.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)");
+                                        });
                                     });
 
                                 ui.add_space(12.0);

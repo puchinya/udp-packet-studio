@@ -72,19 +72,19 @@ impl UdpStudioState {
 
                         // Quick Presets (dropdown menu)
                         ui.horizontal(|ui| {
-                            let presets: &[(&str, &str, &str)] = &[
-                                ("ECHONET Lite", "224.0.23.0",      "0.0.0.0"),
-                                ("SSDP",         "239.255.255.250", "0.0.0.0"),
-                                ("mDNS",         "224.0.0.251",     "0.0.0.0"),
-                                ("All-Nodes",    "224.0.0.1",       "0.0.0.0"),
+                            let presets: &[(&str, &str)] = &[
+                                ("ECHONET Lite", "224.0.23.0"),
+                                ("SSDP",         "239.255.255.250"),
+                                ("mDNS",         "224.0.0.251"),
+                                ("All-Nodes",    "224.0.0.1"),
                             ];
 
-                            let mut selected: Option<(&str, &str)> = None;
+                            let mut selected: Option<&str> = None;
 
                             ui.menu_button(format!("{} ▾", tr("mc-label-presets")), |ui| {
-                                ui.set_min_width(190.0);
+                                ui.set_min_width(180.0);
                                 ui.add_space(2.0);
-                                for (name, ip, iface) in presets {
+                                for (name, ip) in presets {
                                     // 行全体を1つのヒットエリアとして確保
                                     let row_height = 26.0;
                                     let (rect, response) = ui.allocate_exact_size(
@@ -114,17 +114,29 @@ impl UdpStudioState {
                                         },
                                     );
 
+                                    // マルチキャストアドレス（右寄せ）
+                                    ui.painter().text(
+                                        rect.right_center() - egui::vec2(8.0, 0.0),
+                                        egui::Align2::RIGHT_CENTER,
+                                        *ip,
+                                        egui::FontId::monospace(12.0),
+                                        if response.hovered() {
+                                            ui.visuals().widgets.hovered.text_color()
+                                        } else {
+                                            ui.visuals().weak_text_color()
+                                        },
+                                    );
+
                                     if response.clicked() {
-                                        selected = Some((ip, iface));
+                                        selected = Some(ip);
                                         ui.close();
                                     }
                                 }
                                 ui.add_space(2.0);
                             });
 
-                            if let Some((ip, iface)) = selected {
+                            if let Some(ip) = selected {
                                 self.multicast_input_addr = ip.to_string();
-                                self.multicast_input_interface = iface.to_string();
                             }
                         });
 
