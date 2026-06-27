@@ -782,7 +782,7 @@ impl eframe::App for MainApp {
                     .show_inside(ui, |ui| {
                         // Title bar background drag/double-click action covering the entire bar area
                         let title_bar_rect = ui.max_rect();
-                        let drag_resp = ui.interact(title_bar_rect, ui.id().with("title_bar_drag"), egui::Sense::drag());
+                        let drag_resp = ui.interact(title_bar_rect, ui.id().with("title_bar_drag"), egui::Sense::click_and_drag());
                         if drag_resp.dragged_by(egui::PointerButton::Primary) {
                             ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
