@@ -102,27 +102,22 @@ pub struct UdpStudioState {
 
 impl UdpStudioState {
     pub fn reset_settings(&mut self) {
-        self.listener_ip = "0.0.0.0".to_string();
-        self.listener_port = "9000".to_string();
-        self.composer_ip = "127.0.0.1".to_string();
-        self.composer_port = "9000".to_string();
-        self.listener_ip_history.clear();
-        self.listener_port_history.clear();
-        self.composer_ip_history.clear();
-        self.composer_port_history.clear();
-        self.composer_payload_type = PayloadType::Text;
-        self.composer_payload = "Hello from Composer!".to_string();
-        self.auto_save_enabled = false;
-        self.auto_save_dir = if let Some(config) = dirs::config_dir() {
-            config.join("udp-packet-studio").join("logs").to_string_lossy().into_owned()
-        } else if let Some(home) = dirs::home_dir() {
-            home.join("UdpPacketStudio").join("logs").to_string_lossy().into_owned()
-        } else {
-            "./logs".to_string()
-        };
-        self.auto_save_format = LogExportFormat::Csv;
+        let def = SavedConfig::default();
+        self.listener_ip = def.listener_ip;
+        self.listener_port = def.listener_port;
+        self.composer_ip = def.composer_ip;
+        self.composer_port = def.composer_port;
+        self.listener_ip_history = def.listener_ip_history;
+        self.listener_port_history = def.listener_port_history;
+        self.composer_ip_history = def.composer_ip_history;
+        self.composer_port_history = def.composer_port_history;
+        self.composer_payload_type = def.composer_payload_type;
+        self.composer_payload = def.composer_payload;
+        self.auto_save_enabled = def.auto_save_enabled;
+        self.auto_save_dir = def.auto_save_dir;
+        self.auto_save_format = def.auto_save_format;
         self.bind_time = None;
-        self.language_setting = LanguageSetting::System;
+        self.language_setting = def.language_setting;
         self.save_config();
         self.update_logger_config();
     }

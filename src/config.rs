@@ -25,7 +25,100 @@ fn default_auto_save_format() -> LogExportFormat {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedCollections {
+    pub collections: Vec<Collection>,
+}
+
+fn collections_path() -> Option<std::path::PathBuf> {
+    dirs::config_dir().map(|p| p.join("udp-packet-studio").join("collections.json"))
+}
+
+impl Default for SavedCollections {
+    fn default() -> Self {
+        Self {
+            collections: vec![
+                Collection {
+                    id: "default_col_1".to_string(),
+                    name: "Sample".to_string(),
+                    is_expanded: true,
+                    requests: vec![
+                        PacketDefinition {
+                            id: "default_1".to_string(),
+                            name: "Hello".to_string(),
+                            target_ip: "127.0.0.1".to_string(),
+                            target_port: "9000".to_string(),
+                            payload_type: PayloadType::Text,
+                            payload: "Hello!".to_string(),
+                        },
+                    ],
+                },
+            ],
+        }
+    }
+}
+
+impl SavedCollections {
+    pub fn load() -> Self {
+        let mut loaded = None;
+        if let Some(path) = collections_path() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(cols) = serde_json::from_str::<Self>(&content) {
+                    loaded = Some(cols);
+                }
+            }
+        }
+        if loaded.is_none() {
+            if let Ok(content) = std::fs::read_to_string("collections.json") {
+                if let Ok(cols) = serde_json::from_str::<Self>(&content) {
+                    loaded = Some(cols);
+                }
+            }
+        }
+        // Migration from old combined config file
+        if loaded.is_none() {
+            if let Some(old_path) = config_path() {
+                if let Ok(content) = std::fs::read_to_string(&old_path) {
+                    #[derive(Deserialize)]
+                    struct OldConfigMigration {
+                        collections: Option<Vec<Collection>>,
+                    }
+                    if let Ok(old) = serde_json::from_str::<OldConfigMigration>(&content) {
+                        if let Some(cols) = old.collections {
+                            let new_cols = SavedCollections { collections: cols };
+                            new_cols.save();
+                            loaded = Some(new_cols);
+                        }
+                    }
+                }
+            }
+        }
+        loaded.unwrap_or_default()
+    }
+
+    pub fn save(&self) {
+        if cfg!(test) {
+            return;
+        }
+        if let Ok(content) = serde_json::to_string_pretty(self) {
+            let mut saved = false;
+            if let Some(path) = collections_path() {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                if std::fs::write(&path, &content).is_ok() {
+                    saved = true;
+                }
+            }
+            if !saved {
+                let _ = std::fs::write("collections.json", content);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedConfig {
+    #[serde(skip)]
     pub collections: Vec<Collection>,
     pub listener_ip: String,
     pub listener_port: String,
@@ -55,6 +148,28 @@ fn config_path() -> Option<std::path::PathBuf> {
     dirs::config_dir().map(|p| p.join("udp-packet-studio").join("updexp_config.json"))
 }
 
+impl Default for SavedConfig {
+    fn default() -> Self {
+        Self {
+            collections: SavedCollections::default().collections,
+            listener_ip: "0.0.0.0".to_string(),
+            listener_port: "9000".to_string(),
+            composer_ip: "127.0.0.1".to_string(),
+            composer_port: "9000".to_string(),
+            listener_ip_history: Vec::new(),
+            listener_port_history: Vec::new(),
+            composer_ip_history: Vec::new(),
+            composer_port_history: Vec::new(),
+            composer_payload_type: PayloadType::Text,
+            composer_payload: "Hello!".to_string(),
+            auto_save_enabled: false,
+            auto_save_dir: default_auto_save_dir(),
+            auto_save_format: LogExportFormat::Csv,
+            language_setting: LanguageSetting::System,
+        }
+    }
+}
+
 impl SavedConfig {
     pub fn load() -> Self {
         let mut loaded_config = None;
@@ -77,87 +192,43 @@ impl SavedConfig {
             }
         }
 
-        if let Some(mut config) = loaded_config {
+        let mut config = if let Some(mut cfg) = loaded_config {
             let ifaces = crate::get_local_interfaces();
             let mut found = false;
-            if config.listener_ip == "0.0.0.0" || config.listener_ip == "127.0.0.1" {
+            if cfg.listener_ip == "0.0.0.0" || cfg.listener_ip == "127.0.0.1" {
                 found = true;
             } else {
                 for (_, ip) in &ifaces {
-                    if ip == &config.listener_ip {
+                    if ip == &cfg.listener_ip {
                         found = true;
                         break;
                     }
                 }
             }
             if !found {
-                config.listener_ip = "0.0.0.0".to_string();
+                cfg.listener_ip = "0.0.0.0".to_string();
             }
-            return config;
-        }
-        
-        Self {
-            collections: vec![
-                Collection {
-                    id: "default_col_1".to_string(),
-                    name: "ECHONET Lite Queries".to_string(),
-                    is_expanded: true,
-                    requests: vec![
-                        PacketDefinition {
-                            id: "default_1".to_string(),
-                            name: "Aircon Get Operation".to_string(),
-                            target_ip: "127.0.0.1".to_string(),
-                            target_port: "3610".to_string(),
-                            payload_type: PayloadType::Hex,
-                            payload: "10 81 00 01 05 FF 01 01 30 01 62 01 80 00".to_string(),
-                        },
-                        PacketDefinition {
-                            id: "default_2".to_string(),
-                            name: "Node Profile Get".to_string(),
-                            target_ip: "127.0.0.1".to_string(),
-                            target_port: "3610".to_string(),
-                            payload_type: PayloadType::Hex,
-                            payload: "10 81 00 02 05 FF 01 0E F0 01 62 01 D6 00".to_string(),
-                        },
-                    ],
-                },
-                Collection {
-                    id: "default_col_2".to_string(),
-                    name: "General UDP Tests".to_string(),
-                    is_expanded: true,
-                    requests: vec![
-                        PacketDefinition {
-                            id: "default_3".to_string(),
-                            name: "Local Loopback Ping".to_string(),
-                            target_ip: "127.0.0.1".to_string(),
-                            target_port: "9000".to_string(),
-                            payload_type: PayloadType::Text,
-                            payload: "Ping!".to_string(),
-                        },
-                    ],
-                },
-            ],
-            listener_ip: "0.0.0.0".to_string(),
-            listener_port: "9000".to_string(),
-            composer_ip: "127.0.0.1".to_string(),
-            composer_port: "9000".to_string(),
-            listener_ip_history: Vec::new(),
-            listener_port_history: Vec::new(),
-            composer_ip_history: Vec::new(),
-            composer_port_history: Vec::new(),
-            composer_payload_type: PayloadType::Text,
-            composer_payload: "Hello from Composer!".to_string(),
-            auto_save_enabled: false,
-            auto_save_dir: default_auto_save_dir(),
-            auto_save_format: LogExportFormat::Csv,
-            language_setting: LanguageSetting::System,
-        }
+            cfg
+        } else {
+            Self::default()
+        };
+
+        // Load collections separately
+        let saved_cols = SavedCollections::load();
+        config.collections = saved_cols.collections;
+
+        config
     }
 
     pub fn save(&self) {
         if cfg!(test) {
             return;
         }
+
+        // Save collections separately to collections.json
+        let cols = SavedCollections { collections: self.collections.clone() };
+        cols.save();
+
         if let Ok(content) = serde_json::to_string_pretty(self) {
             let mut saved = false;
             if let Some(path) = config_path() {
