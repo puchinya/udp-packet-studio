@@ -65,5 +65,5 @@ The License shall be deemed effective as of the date CC0 was applied by Affirmer
 ## Third-Party Components
 
 This project includes third-party assets (such as fonts in the `assets/` directory) which are licensed under their own respective open-source licenses. 
-Please refer to [docs/third_party_licenses.md](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/docs/third_party_licenses.md) for full details, copyright notices, and license texts of these components.
+Please refer to [docs/third_party_licenses.md](./docs/third_party_licenses.md) for full details, copyright notices, and license texts of these components.
 
