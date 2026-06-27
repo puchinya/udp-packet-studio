@@ -137,7 +137,8 @@ impl UdpStudioState {
                                 }
                             }
                             LogExportFormat::Pcap => {
-                                write_pcap_helper(&path, &self.logs, &self.listener_addr)
+                                let listener_addr = format!("{}:{}", self.listener_ip, self.listener_port);
+                                write_pcap_helper(&path, &self.logs, &listener_addr)
                             }
                             LogExportFormat::Csv => {
                                 // Default to CSV

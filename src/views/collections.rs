@@ -5,7 +5,8 @@ use crate::types::{Collection, PacketDefinition, PayloadType, generate_id, valid
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct YamlRequest {
     pub name: String,
-    pub target: String,
+    pub target_ip: String,
+    pub target_port: String,
     pub payload_type: PayloadType,
     pub payload: String,
 }
@@ -198,7 +199,7 @@ impl UdpStudioState {
                                                         let send_btn = send_btn.on_hover_text(if is_payload_valid { tr("collections-send-tip") } else { tr("collections-invalid-payload-tip") });
                                                         if send_btn.clicked() {
                                                             send_clicked = true;
-                                                            send_trigger = Some((req.target.clone(), req.payload_type, req.payload.clone()));
+                                                            send_trigger = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
                                                         }
                                                     });
                                                 });
@@ -253,11 +254,62 @@ impl UdpStudioState {
                                 needs_save = true;
                             }
                             ui.end_row();
-                            
-                            ui.label(tr("collections-edit-target"));
-                            if ui.text_edit_singleline(&mut req.target).changed() {
-                                needs_save = true;
-                            }
+                                      ui.label(tr("collections-edit-target"));
+                            ui.horizontal(|ui| {
+                                let mut ip_chosen = None;
+                                ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                                let edit_ip = ui.add(egui::TextEdit::singleline(&mut req.target_ip).desired_width(120.0));
+                                if edit_ip.changed() {
+                                    needs_save = true;
+                                }
+                                ui.menu_button("▾", |ui| {
+                                    ui.set_min_width(120.0);
+                                    if self.composer_ip_history.is_empty() {
+                                        ui.weak("No history");
+                                    } else {
+                                        for h in &self.composer_ip_history {
+                                            if ui.button(h).clicked() {
+                                                ip_chosen = Some(h.clone());
+                                                ui.close();
+                                            }
+                                        }
+                                    }
+                                });
+                                if let Some(ip) = ip_chosen {
+                                    req.target_ip = ip;
+                                    needs_save = true;
+                                }
+                                
+                                ui.label(":");
+                                
+                                let mut port_chosen = None;
+                                let edit_port = ui.add(egui::TextEdit::singleline(&mut req.target_port).desired_width(60.0));
+                                if edit_port.changed() {
+                                    needs_save = true;
+                                }
+                                ui.menu_button("▾", |ui| {
+                                    ui.set_min_width(150.0);
+                                    ui.menu_button("Presets", |ui| {
+                                        if ui.button("ECHONET Lite : 3610").clicked() {
+                                            port_chosen = Some("3610".to_string());
+                                            ui.close();
+                                        }
+                                    });
+                                    if !self.composer_port_history.is_empty() {
+                                        ui.separator();
+                                        for h in &self.composer_port_history {
+                                            if ui.button(h).clicked() {
+                                                port_chosen = Some(h.clone());
+                                                ui.close();
+                                            }
+                                        }
+                                    }
+                                });
+                                if let Some(port) = port_chosen {
+                                    req.target_port = port;
+                                    needs_save = true;
+                                }
+                            });
                             ui.end_row();
                             
                             ui.label(tr("collections-edit-format"));
@@ -272,11 +324,18 @@ impl UdpStudioState {
                         });
                     
                     ui.add_space(6.0);
-                    let current_target = req.target.clone();
+                    let current_target = format!("{}:{}", req.target_ip, req.target_port);
                     if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
                         req.payload = payload;
                         req.payload_type = format;
-                        req.target = target;
+                        if let Some(idx) = target.rfind(':') {
+                            let (ip, port) = target.split_at(idx);
+                            req.target_ip = ip.to_string();
+                            req.target_port = port[1..].to_string();
+                        } else {
+                            req.target_ip = target;
+                            req.target_port = "3610".to_string();
+                        }
                         needs_save = true;
                     }
                     
@@ -292,7 +351,7 @@ impl UdpStudioState {
                     if response.changed() {
                         needs_save = true;
                     }
-  
+   
                     let payload_validation = validate_payload(&req.payload, req.payload_type);
                     if let Err(ref err_msg) = payload_validation {
                         ui.add_space(4.0);
@@ -307,7 +366,7 @@ impl UdpStudioState {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.button(tr("collections-edit-load")).clicked() {
-                            load_to_composer = Some((req.target.clone(), req.payload_type, req.payload.clone()));
+                            load_to_composer = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
                         }
                         let is_payload_valid = payload_validation.is_ok();
                         let send_btn = ui.add_enabled(
@@ -315,7 +374,7 @@ impl UdpStudioState {
                             egui::Button::new(tr("collections-edit-send"))
                         );
                         if send_btn.clicked() {
-                            send_trigger = Some((req.target.clone(), req.payload_type, req.payload.clone()));
+                            send_trigger = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
                         }
                     });
                 });
@@ -324,7 +383,7 @@ impl UdpStudioState {
                 let mut found = false;
                 for col in &mut self.collections {
                     if let Some(r) = col.requests.iter_mut().find(|r| r.id == req.id) {
-                        if r.name != req.name || r.target != req.target || r.payload_type != req.payload_type || r.payload != req.payload {
+                        if r.name != req.name || r.target_ip != req.target_ip || r.target_port != req.target_port || r.payload_type != req.payload_type || r.payload != req.payload {
                             *r = req;
                             found = true;
                         }
@@ -371,7 +430,8 @@ impl UdpStudioState {
                     name: col.name.clone(),
                     requests: col.requests.iter().map(|r| YamlRequest {
                         name: r.name.clone(),
-                        target: r.target.clone(),
+                        target_ip: r.target_ip.clone(),
+                        target_port: r.target_port.clone(),
                         payload_type: r.payload_type,
                         payload: r.payload.clone(),
                     }).collect(),
@@ -415,7 +475,8 @@ impl UdpStudioState {
                 col.requests.push(PacketDefinition {
                     id: req_id.clone(),
                     name: req_name,
-                    target: "127.0.0.1:9000".to_string(),
+                    target_ip: "127.0.0.1".to_string(),
+                    target_port: "9000".to_string(),
                     payload_type: PayloadType::Text,
                     payload: "New Request Payload".to_string(),
                 });
@@ -444,13 +505,24 @@ impl UdpStudioState {
         }
         
         if let Some((target, p_type, p_data)) = load_to_composer {
-            self.composer_target = target;
+            if let Some(idx) = target.rfind(':') {
+                let (ip, port) = target.split_at(idx);
+                self.composer_ip = ip.to_string();
+                self.composer_port = port[1..].to_string();
+            } else {
+                self.composer_ip = target;
+                self.composer_port = "9000".to_string();
+            }
             self.composer_payload_type = p_type;
             self.composer_payload = p_data;
             self.save_config();
         }
         
         if let Some((target, p_type, p_data)) = send_trigger {
+            if let Some(idx) = target.rfind(':') {
+                let (ip, port) = target.split_at(idx);
+                self.add_to_composer_history(ip.to_string(), port[1..].to_string());
+            }
             self.send_packet(&target, p_type, &p_data);
         }
  
@@ -472,7 +544,8 @@ impl UdpStudioState {
                                     requests: parsed.requests.into_iter().map(|r| PacketDefinition {
                                         id: generate_id(),
                                         name: r.name,
-                                        target: r.target,
+                                        target_ip: r.target_ip,
+                                        target_port: r.target_port,
                                         payload_type: r.payload_type,
                                         payload: r.payload,
                                     }).collect(),

@@ -245,12 +245,7 @@ impl UdpStudioState {
                     .num_columns(2)
                     .spacing([12.0, 12.0])
                     .show(ui, |ui| {
-                        ui.label(tr("composer-dest-addr"));
-                        if ui.text_edit_singleline(&mut self.composer_target).changed() {
-                            self.save_config();
-                        }
-                        ui.end_row();
-                        
+
                         ui.label(tr("composer-payload-format"));
                         ui.horizontal(|ui| {
                             let r1 = ui.radio_value(&mut self.composer_payload_type, PayloadType::Text, tr("composer-format-text"));
@@ -260,15 +255,80 @@ impl UdpStudioState {
                             }
                         });
                         ui.end_row();
+                        
+                        ui.label(tr("composer-dest-addr"));
+                        ui.horizontal(|ui| {
+                            let mut ip_chosen = None;
+                            ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                            let edit_ip = ui.add(egui::TextEdit::singleline(&mut self.composer_ip).desired_width(120.0));
+                            if edit_ip.changed() {
+                                self.save_config();
+                            }
+                            ui.menu_button("▾", |ui| {
+                                ui.set_min_width(120.0);
+                                if self.composer_ip_history.is_empty() {
+                                    ui.weak("No history");
+                                } else {
+                                    for h in &self.composer_ip_history {
+                                        if ui.button(h).clicked() {
+                                            ip_chosen = Some(h.clone());
+                                            ui.close();
+                                        }
+                                    }
+                                }
+                            });
+                            if let Some(ip) = ip_chosen {
+                                self.composer_ip = ip;
+                                self.save_config();
+                            }
+                            
+                            ui.label(":");
+                            
+                            let mut port_chosen = None;
+                            let edit_port = ui.add(egui::TextEdit::singleline(&mut self.composer_port).desired_width(60.0));
+                            if edit_port.changed() {
+                                self.save_config();
+                            }
+                            ui.menu_button("▾", |ui| {
+                                ui.set_min_width(150.0);
+                                ui.menu_button("Presets", |ui| {
+                                    if ui.button("ECHONET Lite : 3610").clicked() {
+                                        port_chosen = Some("3610".to_string());
+                                        ui.close();
+                                    }
+                                });
+                                if !self.composer_port_history.is_empty() {
+                                    ui.separator();
+                                    for h in &self.composer_port_history {
+                                        if ui.button(h).clicked() {
+                                            port_chosen = Some(h.clone());
+                                            ui.close();
+                                        }
+                                    }
+                                }
+                            });
+                            if let Some(port) = port_chosen {
+                                self.composer_port = port;
+                                self.save_config();
+                            }
+                        });
+                        ui.end_row();
                     });
                 
                 ui.add_space(8.0);
                 
-                let current_target = self.composer_target.clone();
+                let current_target = format!("{}:{}", self.composer_ip, self.composer_port);
                 if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
                     self.composer_payload = payload;
                     self.composer_payload_type = format;
-                    self.composer_target = target;
+                    if let Some(idx) = target.rfind(':') {
+                        let (ip, port) = target.split_at(idx);
+                        self.composer_ip = ip.to_string();
+                        self.composer_port = port[1..].to_string();
+                    } else {
+                        self.composer_ip = target;
+                        self.composer_port = "3610".to_string();
+                    }
                     self.save_config();
                 }
                 
@@ -356,7 +416,10 @@ impl UdpStudioState {
 
         // Apply deferred actions outside borrowing scopes
         if send_trigger {
-            let target = self.composer_target.clone();
+            let ip = self.composer_ip.trim().to_string();
+            let port = self.composer_port.trim().to_string();
+            self.add_to_composer_history(ip.clone(), port.clone());
+            let target = format!("{}:{}", ip, port);
             let payload_type = self.composer_payload_type;
             let payload = self.composer_payload.clone();
             self.send_packet(&target, payload_type, &payload);
@@ -374,7 +437,8 @@ impl UdpStudioState {
             let new_def = PacketDefinition {
                 id: generate_id(),
                 name,
-                target: self.composer_target.clone(),
+                target_ip: self.composer_ip.clone(),
+                target_port: self.composer_port.clone(),
                 payload_type: self.composer_payload_type,
                 payload: self.composer_payload.clone(),
             };

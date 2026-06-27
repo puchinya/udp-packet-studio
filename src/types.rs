@@ -26,7 +26,8 @@ pub enum LogExportFormat {
 pub struct PacketDefinition {
     pub id: String,
     pub name: String,
-    pub target: String,
+    pub target_ip: String,
+    pub target_port: String,
     pub payload_type: PayloadType,
     pub payload: String,
 }

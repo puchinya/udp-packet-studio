@@ -25,8 +25,18 @@ fn default_auto_save_format() -> LogExportFormat {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedConfig {
     pub collections: Vec<Collection>,
-    pub listener_addr: String,
-    pub composer_target: String,
+    pub listener_ip: String,
+    pub listener_port: String,
+    pub composer_ip: String,
+    pub composer_port: String,
+    #[serde(default)]
+    pub listener_ip_history: Vec<String>,
+    #[serde(default)]
+    pub listener_port_history: Vec<String>,
+    #[serde(default)]
+    pub composer_ip_history: Vec<String>,
+    #[serde(default)]
+    pub composer_port_history: Vec<String>,
     pub composer_payload_type: PayloadType,
     pub composer_payload: String,
     #[serde(default = "default_auto_save_enabled")]
@@ -79,14 +89,16 @@ impl SavedConfig {
                         PacketDefinition {
                             id: "default_1".to_string(),
                             name: "Aircon Get Operation".to_string(),
-                            target: "127.0.0.1:3610".to_string(),
+                            target_ip: "127.0.0.1".to_string(),
+                            target_port: "3610".to_string(),
                             payload_type: PayloadType::Hex,
                             payload: "10 81 00 01 05 FF 01 01 30 01 62 01 80 00".to_string(),
                         },
                         PacketDefinition {
                             id: "default_2".to_string(),
                             name: "Node Profile Get".to_string(),
-                            target: "127.0.0.1:3610".to_string(),
+                            target_ip: "127.0.0.1".to_string(),
+                            target_port: "3610".to_string(),
                             payload_type: PayloadType::Hex,
                             payload: "10 81 00 02 05 FF 01 0E F0 01 62 01 D6 00".to_string(),
                         },
@@ -100,15 +112,22 @@ impl SavedConfig {
                         PacketDefinition {
                             id: "default_3".to_string(),
                             name: "Local Loopback Ping".to_string(),
-                            target: "127.0.0.1:9000".to_string(),
+                            target_ip: "127.0.0.1".to_string(),
+                            target_port: "9000".to_string(),
                             payload_type: PayloadType::Text,
                             payload: "Ping!".to_string(),
                         },
                     ],
                 },
             ],
-            listener_addr: "0.0.0.0:9000".to_string(),
-            composer_target: "127.0.0.1:9000".to_string(),
+            listener_ip: "0.0.0.0".to_string(),
+            listener_port: "9000".to_string(),
+            composer_ip: "127.0.0.1".to_string(),
+            composer_port: "9000".to_string(),
+            listener_ip_history: Vec::new(),
+            listener_port_history: Vec::new(),
+            composer_ip_history: Vec::new(),
+            composer_port_history: Vec::new(),
             composer_payload_type: PayloadType::Text,
             composer_payload: "Hello from Composer!".to_string(),
             auto_save_enabled: false,

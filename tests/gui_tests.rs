@@ -127,7 +127,10 @@ fn test_gui_triggered_communication() {
         collections: Vec::new(),
         selected_request_id: None,
         composer_selected_collection_idx: 0,
-        composer_target: partner_addr.to_string(),
+        composer_ip: partner_addr.ip().to_string(),
+        composer_port: partner_addr.port().to_string(),
+        composer_ip_history: Vec::new(),
+        composer_port_history: Vec::new(),
         composer_payload_type: PayloadType::Text,
         composer_payload: "Hello GUI World!".to_string(),
         composer_name: "Test Name".to_string(),
@@ -137,7 +140,10 @@ fn test_gui_triggered_communication() {
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_addr: "127.0.0.1:0".to_string(),
+        listener_ip: "127.0.0.1".to_string(),
+        listener_port: "0".to_string(),
+        listener_ip_history: Vec::new(),
+        listener_port_history: Vec::new(),
         is_listening: true, // Needed to enable the send button
         bound_addr: Some(bound_addr.to_string()),
         listener_error: None,
@@ -258,7 +264,8 @@ fn test_collections_gui_interactions() {
     let test_req = PacketDefinition {
         id: test_req_id.clone(),
         name: "Test Request".to_string(),
-        target: partner_addr.to_string(),
+        target_ip: partner_addr.ip().to_string(),
+        target_port: partner_addr.port().to_string(),
         payload_type: PayloadType::Text,
         payload: "Collection Packets".to_string(),
     };
@@ -275,7 +282,10 @@ fn test_collections_gui_interactions() {
         collections: vec![test_col],
         selected_request_id: Some(test_req_id.clone()),
         composer_selected_collection_idx: 0,
-        composer_target: "127.0.0.1:9000".to_string(),
+        composer_ip: "127.0.0.1".to_string(),
+        composer_port: "9000".to_string(),
+        composer_ip_history: Vec::new(),
+        composer_port_history: Vec::new(),
         composer_payload_type: PayloadType::Hex,
         composer_payload: "AABBCC".to_string(),
         composer_name: "Composer Request".to_string(),
@@ -285,7 +295,10 @@ fn test_collections_gui_interactions() {
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_addr: "127.0.0.1:0".to_string(),
+        listener_ip: "127.0.0.1".to_string(),
+        listener_port: "0".to_string(),
+        listener_ip_history: Vec::new(),
+        listener_port_history: Vec::new(),
         is_listening: true, // Needed to enable the send button
         bound_addr: Some(bound_addr.to_string()),
         listener_error: None,
@@ -420,7 +433,8 @@ fn test_collections_gui_interactions() {
     });
 
     // Assert: The composer state has been populated with the loaded request's target, type, and payload
-    assert_eq!(state.composer_target, partner_addr.to_string());
+    assert_eq!(state.composer_ip, partner_addr.ip().to_string());
+    assert_eq!(state.composer_port, partner_addr.port().to_string());
     assert_eq!(state.composer_payload_type, PayloadType::Text);
     assert_eq!(state.composer_payload, "Collection Packets".to_string());
 

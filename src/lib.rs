@@ -26,7 +26,10 @@ pub struct UdpStudioState {
     pub composer_selected_collection_idx: usize,
     
     // Composer tab inputs
-    pub composer_target: String,
+    pub composer_ip: String,
+    pub composer_port: String,
+    pub composer_ip_history: Vec<String>,
+    pub composer_port_history: Vec<String>,
     pub composer_payload_type: PayloadType,
     pub composer_payload: String,
     pub composer_name: String,
@@ -40,7 +43,10 @@ pub struct UdpStudioState {
     pub filtered_indices: Vec<usize>,
     
     // Listener settings
-    pub listener_addr: String,
+    pub listener_ip: String,
+    pub listener_port: String,
+    pub listener_ip_history: Vec<String>,
+    pub listener_port_history: Vec<String>,
     pub is_listening: bool,
     pub bound_addr: Option<String>,
     pub listener_error: Option<String>,
@@ -80,6 +86,38 @@ pub struct UdpStudioState {
 }
 
 impl UdpStudioState {
+    pub fn add_to_listener_history(&mut self, ip: String, port: String) {
+        let ip = ip.trim().to_string();
+        if !ip.is_empty() {
+            self.listener_ip_history.retain(|x| x != &ip);
+            self.listener_ip_history.insert(0, ip);
+            self.listener_ip_history.truncate(20);
+        }
+        let port = port.trim().to_string();
+        if !port.is_empty() {
+            self.listener_port_history.retain(|x| x != &port);
+            self.listener_port_history.insert(0, port);
+            self.listener_port_history.truncate(20);
+        }
+        self.save_config();
+    }
+
+    pub fn add_to_composer_history(&mut self, ip: String, port: String) {
+        let ip = ip.trim().to_string();
+        if !ip.is_empty() {
+            self.composer_ip_history.retain(|x| x != &ip);
+            self.composer_ip_history.insert(0, ip);
+            self.composer_ip_history.truncate(20);
+        }
+        let port = port.trim().to_string();
+        if !port.is_empty() {
+            self.composer_port_history.retain(|x| x != &port);
+            self.composer_port_history.insert(0, port);
+            self.composer_port_history.truncate(20);
+        }
+        self.save_config();
+    }
+
     pub fn language_id(&self) -> String {
         crate::locales::resolve_language(self.language_setting)
     }
@@ -105,8 +143,14 @@ impl UdpStudioState {
         {
             let config = SavedConfig {
                 collections: self.collections.clone(),
-                listener_addr: self.listener_addr.clone(),
-                composer_target: self.composer_target.clone(),
+                listener_ip: self.listener_ip.clone(),
+                listener_port: self.listener_port.clone(),
+                composer_ip: self.composer_ip.clone(),
+                composer_port: self.composer_port.clone(),
+                listener_ip_history: self.listener_ip_history.clone(),
+                listener_port_history: self.listener_port_history.clone(),
+                composer_ip_history: self.composer_ip_history.clone(),
+                composer_port_history: self.composer_port_history.clone(),
                 composer_payload_type: self.composer_payload_type,
                 composer_payload: self.composer_payload.clone(),
                 auto_save_enabled: self.auto_save_enabled,
@@ -119,11 +163,12 @@ impl UdpStudioState {
     }
 
     pub(crate) fn update_logger_config(&self) {
+        let listener_addr = format!("{}:{}", self.listener_ip, self.listener_port);
         let _ = self.tx_logger.send(LoggerCommand::Configure {
             enabled: self.auto_save_enabled,
             dir: self.auto_save_dir.clone(),
             format: self.auto_save_format,
-            listener_addr: self.listener_addr.clone(),
+            listener_addr,
         });
     }
 
@@ -267,7 +312,7 @@ impl MainApp {
         let init_enabled = config.auto_save_enabled;
         let init_dir = config.auto_save_dir.clone();
         let init_format = config.auto_save_format;
-        let init_addr = config.listener_addr.clone();
+        let init_addr = format!("{}:{}", config.listener_ip, config.listener_port);
         
         std::thread::spawn(move || {
             let mut enabled = init_enabled;
@@ -448,7 +493,10 @@ impl MainApp {
             collections: config.collections,
             selected_request_id: None,
             composer_selected_collection_idx: 0,
-            composer_target: config.composer_target,
+            composer_ip: config.composer_ip,
+            composer_port: config.composer_port,
+            composer_ip_history: config.composer_ip_history,
+            composer_port_history: config.composer_port_history,
             composer_payload_type: config.composer_payload_type,
             composer_payload: config.composer_payload,
             composer_name: String::new(),
@@ -458,7 +506,10 @@ impl MainApp {
             auto_scroll: true,
             log_export_format: LogExportFormat::Csv,
             filtered_indices: Vec::new(),
-            listener_addr: config.listener_addr,
+            listener_ip: config.listener_ip,
+            listener_port: config.listener_port,
+            listener_ip_history: config.listener_ip_history,
+            listener_port_history: config.listener_port_history,
             is_listening: false,
             bound_addr: None,
             listener_error: None,
@@ -616,7 +667,15 @@ impl eframe::App for MainApp {
                 UdpEvent::Bound(addr) => {
                     self.state.is_listening = true;
                     self.state.bound_addr = Some(addr.to_string());
-                    self.state.listener_addr = addr.to_string();
+                    let addr_str = addr.to_string();
+                    if let Some(idx) = addr_str.rfind(':') {
+                        let (ip, port) = addr_str.split_at(idx);
+                        self.state.listener_ip = ip.to_string();
+                        self.state.listener_port = port[1..].to_string();
+                    } else {
+                        self.state.listener_ip = addr_str;
+                        self.state.listener_port = "9000".to_string();
+                    }
                     self.state.listener_error = None;
                     self.state.add_system_info(format!("Listening socket bound to {}", addr));
                     self.state.save_config();
@@ -769,29 +828,88 @@ impl eframe::App for MainApp {
                             
                             // Integrated Socket Bind Controls
                             ui.label(self.state.tr("titlebar-bind-addr"));
-                            let text_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_addr).desired_width(130.0));
-                            if text_res.changed() {
+                            
+                            let mut ip_chosen = None;
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                                let edit_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_ip).desired_width(100.0));
+                                if edit_res.changed() {
+                                    self.state.save_config();
+                                }
+                                ui.menu_button("▾", |ui| {
+                                    ui.set_min_width(120.0);
+                                    if self.state.listener_ip_history.is_empty() {
+                                        ui.weak("No history");
+                                    } else {
+                                        for h in &self.state.listener_ip_history {
+                                            if ui.button(h).clicked() {
+                                                ip_chosen = Some(h.clone());
+                                                ui.close();
+                                            }
+                                        }
+                                    }
+                                });
+                            });
+                            if let Some(ip) = ip_chosen {
+                                self.state.listener_ip = ip;
+                                self.state.save_config();
+                            }
+                            
+                            ui.label(":");
+                            
+                            let mut port_chosen = None;
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                                let edit_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_port).desired_width(55.0));
+                                if edit_res.changed() {
+                                    self.state.save_config();
+                                }
+                                ui.menu_button("▾", |ui| {
+                                    ui.set_min_width(150.0);
+                                    ui.menu_button("Presets", |ui| {
+                                        if ui.button("ECHONET Lite : 3610").clicked() {
+                                            port_chosen = Some("3610".to_string());
+                                            ui.close();
+                                        }
+                                    });
+                                    if !self.state.listener_port_history.is_empty() {
+                                        ui.separator();
+                                        for h in &self.state.listener_port_history {
+                                            if ui.button(h).clicked() {
+                                                port_chosen = Some(h.clone());
+                                                ui.close();
+                                            }
+                                        }
+                                    }
+                                });
+                            });
+                            if let Some(port) = port_chosen {
+                                self.state.listener_port = port;
                                 self.state.save_config();
                             }
                             
                             ui.add_space(5.0);
                             
                             if self.state.is_listening {
-                                if ui.button(self.state.tr("titlebar-btn-stop")).clicked() {
-                                    self.state.udp_worker.send(UdpCommand::Unbind);
-                                }
-                                ui.add_space(5.0);
-                                ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
-                                if let Some(ref addr) = self.state.bound_addr {
-                                    ui.label(format!("({})", addr));
-                                }
-                            } else {
-                                if ui.button(self.state.tr("titlebar-btn-bind")).clicked() {
-                                    self.state.listener_error = None;
-                                    self.state.udp_worker.send(UdpCommand::Bind(self.state.listener_addr.clone()));
-                                }
-                                ui.add_space(5.0);
-                                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
+                                 if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
+                                     self.state.udp_worker.send(UdpCommand::Unbind);
+                                 }
+                                 ui.add_space(5.0);
+                                 ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
+                                 if let Some(ref addr) = self.state.bound_addr {
+                                     ui.label(format!("({})", addr));
+                                 }
+                             } else {
+                                 if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))).clicked() {
+                                     self.state.listener_error = None;
+                                     let ip = self.state.listener_ip.trim().to_string();
+                                     let port = self.state.listener_port.trim().to_string();
+                                     self.state.add_to_listener_history(ip.clone(), port.clone());
+                                     let bind_addr = format!("{}:{}", ip, port);
+                                     self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
+                                 }
+                                 ui.add_space(5.0);
+                                 ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
                             }
                             
                             if let Some(ref err) = self.state.listener_error {
