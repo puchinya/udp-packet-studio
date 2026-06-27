@@ -314,36 +314,35 @@ impl UdpStudioState {
                                 }
                             });
                             ui.end_row();
-                            
-                            ui.label(tr("collections-edit-format"));
-                            ui.horizontal(|ui| {
-                                let r1 = ui.radio_value(&mut req.payload_type, PayloadType::Text, "Text");
-                                let r2 = ui.radio_value(&mut req.payload_type, PayloadType::Hex, "Hex");
-                                if r1.changed() || r2.changed() {
-                                    needs_save = true;
-                                }
-                            });
-                            ui.end_row();
-                        });
-                    
-                    ui.add_space(6.0);
-                    let current_target = format!("{}:{}", req.target_ip, req.target_port);
-                    if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
-                        req.payload = payload;
-                        req.payload_type = format;
-                        if let Some(idx) = target.rfind(':') {
-                            let (ip, port) = target.split_at(idx);
-                            req.target_ip = ip.to_string();
-                            req.target_port = port[1..].to_string();
-                        } else {
-                            req.target_ip = target;
-                            req.target_port = "3610".to_string();
-                        }
-                        needs_save = true;
-                    }
-                    
-                    ui.add_space(6.0);
-                    ui.label(tr("collections-edit-payload"));
+                            ui.label(tr("collections-edit-payload"));
+                              ui.horizontal(|ui| {
+                                  let r1 = ui.radio_value(&mut req.payload_type, PayloadType::Text, "Text");
+                                  ui.add_space(10.0);
+                                  let r2 = ui.radio_value(&mut req.payload_type, PayloadType::Hex, "Hex");
+                                  if r1.changed() || r2.changed() {
+                                      needs_save = true;
+                                  }
+                              });
+                             ui.end_row();
+                         });
+                     
+                     ui.add_space(6.0);
+                     let current_target = format!("{}:{}", req.target_ip, req.target_port);
+                     if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
+                         req.payload = payload;
+                         req.payload_type = format;
+                         if let Some(idx) = target.rfind(':') {
+                             let (ip, port) = target.split_at(idx);
+                             req.target_ip = ip.to_string();
+                             req.target_port = port[1..].to_string();
+                         } else {
+                             req.target_ip = target;
+                             req.target_port = "3610".to_string();
+                         }
+                         needs_save = true;
+                     }
+                     
+                     ui.add_space(6.0);
                     let response = ui.add(
                         egui::TextEdit::multiline(&mut req.payload)
                             .font(egui::TextStyle::Monospace)
