@@ -74,24 +74,6 @@ impl SavedCollections {
                 }
             }
         }
-        // Migration from old combined config file
-        if loaded.is_none() {
-            if let Some(old_path) = config_path() {
-                if let Ok(content) = std::fs::read_to_string(&old_path) {
-                    #[derive(Deserialize)]
-                    struct OldConfigMigration {
-                        collections: Option<Vec<Collection>>,
-                    }
-                    if let Ok(old) = serde_json::from_str::<OldConfigMigration>(&content) {
-                        if let Some(cols) = old.collections {
-                            let new_cols = SavedCollections { collections: cols };
-                            new_cols.save();
-                            loaded = Some(new_cols);
-                        }
-                    }
-                }
-            }
-        }
         loaded.unwrap_or_default()
     }
 
@@ -145,7 +127,7 @@ pub struct SavedConfig {
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
-    dirs::config_dir().map(|p| p.join("udp-packet-studio").join("updexp_config.json"))
+    dirs::config_dir().map(|p| p.join("udp-packet-studio").join("settings.json"))
 }
 
 impl Default for SavedConfig {
@@ -185,12 +167,13 @@ impl SavedConfig {
 
         // Fallback to local file in current directory if not found in config directory
         if loaded_config.is_none() {
-            if let Ok(content) = std::fs::read_to_string("updexp_config.json") {
+            if let Ok(content) = std::fs::read_to_string("settings.json") {
                 if let Ok(config) = serde_json::from_str::<Self>(&content) {
                     loaded_config = Some(config);
                 }
             }
         }
+
 
         let mut config = if let Some(mut cfg) = loaded_config {
             let ifaces = crate::get_local_interfaces();
@@ -240,7 +223,7 @@ impl SavedConfig {
                 }
             }
             if !saved {
-                let _ = std::fs::write("updexp_config.json", content);
+                let _ = std::fs::write("settings.json", content);
             }
         }
     }
