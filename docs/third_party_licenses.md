@@ -20,6 +20,14 @@ This project includes third-party software components and assets. These componen
 
 ---
 
+## 3. Noto Sans Symbols 2
+- **File:** `assets/fonts/NotoSansSymbols2-Regular.ttf`
+- **Source:** [Google Fonts / Noto Fonts Symbols 2](https://fonts.google.com/specimen/Noto+Sans+Symbols+2)
+- **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)
+
+---
+
 ## SIL Open Font License (OFL) Version 1.1
 
 ### PREAMBLE

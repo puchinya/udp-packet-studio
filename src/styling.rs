@@ -7,11 +7,16 @@ pub fn setup_custom_styles(ctx: &egui::Context) {
 
     // Include font binaries statically from assets
     let noto_jp_data = include_bytes!("../assets/fonts/NotoSansJP-Regular.otf");
+    let noto_symbols_data = include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf");
     let font_awesome_data = include_bytes!("../assets/fonts/fa-solid-900.ttf");
 
     fonts.font_data.insert(
         "noto_sans_jp".to_owned(),
         egui::FontData::from_static(noto_jp_data).into(),
+    );
+    fonts.font_data.insert(
+        "noto_sans_symbols".to_owned(),
+        egui::FontData::from_static(noto_symbols_data).into(),
     );
     fonts.font_data.insert(
         "font_awesome".to_owned(),
@@ -20,11 +25,13 @@ pub fn setup_custom_styles(ctx: &egui::Context) {
 
     if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
         family.insert(0, "noto_sans_jp".to_owned());
-        family.insert(1, "font_awesome".to_owned());
+        family.insert(1, "noto_sans_symbols".to_owned());
+        family.insert(2, "font_awesome".to_owned());
     }
     if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
         family.insert(0, "noto_sans_jp".to_owned());
-        family.insert(1, "font_awesome".to_owned());
+        family.insert(1, "noto_sans_symbols".to_owned());
+        family.insert(2, "font_awesome".to_owned());
     }
     ctx.set_fonts(fonts);
 
