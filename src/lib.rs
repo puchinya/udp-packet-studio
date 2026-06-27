@@ -864,97 +864,94 @@ impl eframe::App for MainApp {
                             // Integrated Socket Bind Controls
                             ui.label(self.state.tr("titlebar-bind-addr"));
                             
-                            let mut ip_chosen = None;
-                            let current_ip = self.state.listener_ip.clone();
-                            egui::ComboBox::from_id_salt("bind_ip_combo")
-                                .selected_text(&current_ip)
-                                .width(120.0)
-                                .show_ui(ui, |ui| {
-                                    if ui.selectable_label(current_ip == "0.0.0.0", "0.0.0.0 (All interfaces)").clicked() {
-                                        ip_chosen = Some("0.0.0.0".to_string());
-                                    }
-                                    if ui.selectable_label(current_ip == "127.0.0.1", "127.0.0.1 (Loopback)").clicked() {
-                                        ip_chosen = Some("127.0.0.1".to_string());
-                                    }
-                                    let ifaces = crate::get_local_interfaces();
-                                    if !ifaces.is_empty() {
-                                        ui.separator();
-                                        for (name, ip) in &ifaces {
-                                            if ui.selectable_label(current_ip == *ip, format!("{} ({})", ip, name)).clicked() {
-                                                ip_chosen = Some(ip.clone());
-                                            }
-                                        }
-                                    }
-                                });
-                            if let Some(ip) = ip_chosen {
-                                self.state.listener_ip = ip;
-                                self.state.save_config();
-                            }
-                            
-                            ui.label(":");
-                            
-                            let mut port_chosen = None;
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
-                                let edit_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_port).desired_width(55.0));
-                                if edit_res.changed() {
-                                    self.state.save_config();
-                                }
-                                ui.menu_button("▾", |ui| {
-                                    ui.set_min_width(150.0);
-                                    ui.menu_button("Presets", |ui| {
-                                        if ui.button("ECHONET Lite : 3610").clicked() {
-                                            port_chosen = Some("3610".to_string());
-                                            ui.close();
-                                        }
-                                    });
-                                    if !self.state.listener_port_history.is_empty() {
-                                        ui.separator();
-                                        for h in &self.state.listener_port_history {
-                                            if ui.button(h).clicked() {
-                                                port_chosen = Some(h.clone());
-                                                ui.close();
-                                            }
-                                        }
-                                    }
-                                });
-                            });
-                            if let Some(port) = port_chosen {
-                                self.state.listener_port = port;
-                                self.state.save_config();
-                            }
-                            
-                            ui.add_space(5.0);
-                            
-                            if self.state.is_listening {
-                                 if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
-                                     self.state.udp_worker.send(UdpCommand::Unbind);
+                             ui.add_enabled_ui(!self.state.is_listening, |ui| {
+                                 let mut ip_chosen = None;
+                                 let current_ip = self.state.listener_ip.clone();
+                                 egui::ComboBox::from_id_salt("bind_ip_combo")
+                                     .selected_text(&current_ip)
+                                     .width(120.0)
+                                     .show_ui(ui, |ui| {
+                                         if ui.selectable_label(current_ip == "0.0.0.0", "0.0.0.0 (All interfaces)").clicked() {
+                                             ip_chosen = Some("0.0.0.0".to_string());
+                                         }
+                                         if ui.selectable_label(current_ip == "127.0.0.1", "127.0.0.1 (Loopback)").clicked() {
+                                             ip_chosen = Some("127.0.0.1".to_string());
+                                         }
+                                         let ifaces = crate::get_local_interfaces();
+                                         if !ifaces.is_empty() {
+                                             ui.separator();
+                                             for (name, ip) in &ifaces {
+                                                 if ui.selectable_label(current_ip == *ip, format!("{} ({})", ip, name)).clicked() {
+                                                     ip_chosen = Some(ip.clone());
+                                                 }
+                                             }
+                                         }
+                                     });
+                                 if let Some(ip) = ip_chosen {
+                                     self.state.listener_ip = ip;
+                                     self.state.save_config();
                                  }
-                                 ui.add_space(5.0);
-                                 ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
-                                 if let Some(ref addr) = self.state.bound_addr {
-                                     ui.label(format!("({})", addr));
+                             });
+                             
+                             ui.label(":");
+                             
+                             ui.add_enabled_ui(!self.state.is_listening, |ui| {
+                                 let mut port_chosen = None;
+                                 ui.horizontal(|ui| {
+                                     ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                                     let edit_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_port).desired_width(55.0));
+                                     if edit_res.changed() {
+                                         self.state.save_config();
+                                     }
+                                     ui.menu_button("▾", |ui| {
+                                         ui.set_min_width(150.0);
+                                         ui.menu_button("Presets", |ui| {
+                                             if ui.button("ECHONET Lite : 3610").clicked() {
+                                                 port_chosen = Some("3610".to_string());
+                                                 ui.close();
+                                             }
+                                         });
+                                         if !self.state.listener_port_history.is_empty() {
+                                             ui.separator();
+                                             for h in &self.state.listener_port_history {
+                                                 if ui.button(h).clicked() {
+                                                     port_chosen = Some(h.clone());
+                                                     ui.close();
+                                                 }
+                                             }
+                                         }
+                                     });
+                                 });
+                                 if let Some(port) = port_chosen {
+                                     self.state.listener_port = port;
+                                     self.state.save_config();
                                  }
-                             } else {
-                                  let is_port_valid = {
-                                      let p = self.state.listener_port.trim();
-                                      !p.is_empty() && p != "0" && p.parse::<u16>().is_ok()
-                                  };
-                                  let bind_btn = ui.add_enabled(
-                                      is_port_valid,
-                                      egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
-                                  );
-                                  if bind_btn.clicked() {
-                                      self.state.listener_error = None;
-                                      let ip = self.state.listener_ip.trim().to_string();
-                                      let port = self.state.listener_port.trim().to_string();
-                                      self.state.add_to_listener_history(port.clone());
-                                      let bind_addr = format!("{}:{}", ip, port);
-                                      self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
+                             });
+                             
+                             ui.add_space(5.0);
+                             
+                             if self.state.is_listening {
+                                  if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
+                                      self.state.udp_worker.send(UdpCommand::Unbind);
                                   }
-                                 ui.add_space(5.0);
-                                 ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
-                            }
+                              } else {
+                                   let is_port_valid = {
+                                       let p = self.state.listener_port.trim();
+                                       !p.is_empty() && p != "0" && p.parse::<u16>().is_ok()
+                                   };
+                                   let bind_btn = ui.add_enabled(
+                                       is_port_valid,
+                                       egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
+                                   );
+                                   if bind_btn.clicked() {
+                                       self.state.listener_error = None;
+                                       let ip = self.state.listener_ip.trim().to_string();
+                                       let port = self.state.listener_port.trim().to_string();
+                                       self.state.add_to_listener_history(port.clone());
+                                       let bind_addr = format!("{}:{}", ip, port);
+                                       self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
+                                   }
+                             }
                             
                             if let Some(ref err) = self.state.listener_error {
                                 ui.add_space(10.0);
