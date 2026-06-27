@@ -182,5 +182,13 @@ To align with Rust's best practices and keep the main codebase modular and clean
 - **UI (Aboutダイアログ) への反映**:
   - [docs/third_party_licenses.md](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/docs/third_party_licenses.md) に記載されている外部オープンソース資産（フォント、アセットなど）は、アプリ内の「About」ダイアログの「Third Party Licenses」タブにおいても、他ライブラリと同様のアコーディオン（collapsing）レイアウトで著作権表示やライセンス条件を含めてください。
 
+---
+
+## 🐙 8. Git & Version Control Practices
+
+To ensure user control over the codebase and repository:
+- **Do NOT commit (`git commit`) or push (`git push`) automatically.**
+- All changes should be made to the local files. Notify the user of the modified files so they can inspect, commit, and push them manually.
+
 
 
