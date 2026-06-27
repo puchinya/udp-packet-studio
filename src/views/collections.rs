@@ -88,6 +88,7 @@ impl UdpStudioState {
                                     toggle_expand = Some(collection.id.clone());
                                 }
                                 
+                                ui.add_space(4.0);
                                 ui.add(egui::Button::new("📁").frame(false).sense(egui::Sense::hover()));
                                 
                                 // Editable Collection Name
