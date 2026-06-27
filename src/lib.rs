@@ -936,14 +936,22 @@ impl eframe::App for MainApp {
                                      ui.label(format!("({})", addr));
                                  }
                              } else {
-                                 if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))).clicked() {
-                                     self.state.listener_error = None;
-                                     let ip = self.state.listener_ip.trim().to_string();
-                                     let port = self.state.listener_port.trim().to_string();
-                                     self.state.add_to_listener_history(port.clone());
-                                     let bind_addr = format!("{}:{}", ip, port);
-                                     self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
-                                 }
+                                  let is_port_valid = {
+                                      let p = self.state.listener_port.trim();
+                                      !p.is_empty() && p != "0" && p.parse::<u16>().is_ok()
+                                  };
+                                  let bind_btn = ui.add_enabled(
+                                      is_port_valid,
+                                      egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
+                                  );
+                                  if bind_btn.clicked() {
+                                      self.state.listener_error = None;
+                                      let ip = self.state.listener_ip.trim().to_string();
+                                      let port = self.state.listener_port.trim().to_string();
+                                      self.state.add_to_listener_history(port.clone());
+                                      let bind_addr = format!("{}:{}", ip, port);
+                                      self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
+                                  }
                                  ui.add_space(5.0);
                                  ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
                             }
