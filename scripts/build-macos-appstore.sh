@@ -57,7 +57,7 @@ cat <<EOF > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>CFBundleIdentifier</key>
-    <string>com.puchinya.${APP_NAME}</string>
+    <string>jp.puchinya.${APP_NAME}</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
