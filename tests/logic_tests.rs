@@ -186,7 +186,7 @@ fn test_csv_formatting() {
     ];
 
     let mut csv_content = String::new();
-    csv_content.push_str("No,Timestamp,Direction,IP,Port,Length,DataHex,DataText\n");
+    csv_content.push_str("No,Timestamp,Direction,Src IP,Src Port,Dest IP,Dest Port,Length,DataHex,DataText\n");
     for (idx, entry) in logs.iter().enumerate() {
         let time_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S.%3f").to_string();
         let dir_str = match entry.direction {
@@ -195,15 +195,50 @@ fn test_csv_formatting() {
             LogDirection::SystemInfo => "INFO",
             LogDirection::SystemError => "ERROR",
         };
+        
+        let is_system = entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError;
+        
+        let src_ip_str = if is_system {
+            "-".to_string()
+        } else if entry.direction == LogDirection::Sent {
+            entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+        } else {
+            entry.address.ip().to_string()
+        };
+
+        let send_port_str = if is_system {
+            "-".to_string()
+        } else if entry.direction == LogDirection::Sent {
+            entry.local_port.clone().unwrap_or_else(|| "0".to_string())
+        } else {
+            entry.address.port().to_string()
+        };
+
+        let dest_ip_str = if is_system {
+            "-".to_string()
+        } else if entry.direction == LogDirection::Sent {
+            entry.address.ip().to_string()
+        } else {
+            entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+        };
+
+        let recv_port_str = if is_system {
+            "-".to_string()
+        } else if entry.direction == LogDirection::Sent {
+            entry.address.port().to_string()
+        } else {
+            entry.local_port.clone().unwrap_or_else(|| "0".to_string())
+        };
+
         let len_str = entry.data.len().to_string();
         let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
         let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
-        csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
-            idx + 1, time_str, dir_str, entry.ip, entry.port, len_str, hex_str, plain_str));
+        csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
+            idx + 1, time_str, dir_str, src_ip_str, send_port_str, dest_ip_str, recv_port_str, len_str, hex_str, plain_str));
     }
 
-    assert!(csv_content.contains("1,\"2026-06-13 12:00:00.000\",\"SENT\",\"127.0.0.1\",\"9000\",5,\"48 65 6C 6C 6F\",\"Hello\""));
-    assert!(csv_content.contains("2,\"2026-06-13 12:00:00.000\",\"RECV\",\"192.168.1.50\",\"5000\",4,\"10 81 00 01\""));
+    assert!(csv_content.contains("1,\"2026-06-13 12:00:00.000\",\"SENT\",\"0.0.0.0\",\"0\",\"127.0.0.1\",\"9000\",5,\"48 65 6C 6C 6F\",\"Hello\""));
+    assert!(csv_content.contains("2,\"2026-06-13 12:00:00.000\",\"RECV\",\"192.168.1.50\",\"5000\",\"0.0.0.0\",\"0\",4,\"10 81 00 01\""));
 }
 
 #[test]
