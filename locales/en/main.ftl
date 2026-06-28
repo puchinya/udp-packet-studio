@@ -52,6 +52,7 @@ settings-reset-confirm-title = Confirm Reset
 settings-reset-confirm-msg = Are you sure you want to reset all settings? The application will restart automatically.
 settings-ok = OK
 settings-cancel = Cancel
+dialog-error-title = Error
 
 # Collections View
 collections-new = + New

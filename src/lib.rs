@@ -148,6 +148,19 @@ impl UdpStudioState {
         self.update_logger_config();
     }
 
+    pub(crate) fn show_error_dialog(&self, msg: &str) {
+        let _ = msg;
+        #[cfg(not(test))]
+        {
+            let title = self.tr("dialog-error-title");
+            rfd::MessageDialog::new()
+                .set_title(&title)
+                .set_description(msg)
+                .set_level(rfd::MessageLevel::Error)
+                .show();
+        }
+    }
+
     pub fn add_to_listener_history(&mut self, port: String) {
         let port = port.trim().to_string();
         if !port.is_empty() {
@@ -279,9 +292,10 @@ impl UdpStudioState {
             Local::now(),
             LogDirection::SystemError,
             SocketAddr::from(([0, 0, 0, 0], 0)),
-            msg.into_bytes(),
+            msg.clone().into_bytes(),
         );
         self.push_log(entry);
+        self.show_error_dialog(&msg);
     }
 
     pub(crate) fn update_filtered_indices(&mut self) {
@@ -463,9 +477,11 @@ impl UdpStudioState {
                 }
             }
 
-            if let Some(ref err) = self.sockets[socket_idx].error {
-                ui.add_space(10.0);
-                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), format!("⚠ {}", err));
+            if !is_in_navbar {
+                if let Some(ref err) = self.sockets[socket_idx].error {
+                    ui.add_space(10.0);
+                    ui.colored_label(egui::Color32::from_rgb(255, 90, 90), format!("⚠ {}", err));
+                }
             }
         });
     }

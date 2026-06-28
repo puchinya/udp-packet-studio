@@ -52,6 +52,7 @@ settings-reset-confirm-title = 初期化の確認
 settings-reset-confirm-msg = 設定を初期化してもよろしいですか？初期化後にアプリは自動的に再起動します。
 settings-ok = OK
 settings-cancel = キャンセル
+dialog-error-title = エラー
 
 # Collections View
 collections-new = + 新規作成
