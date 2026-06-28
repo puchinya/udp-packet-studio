@@ -161,7 +161,18 @@ log-btn-clear = 🗑 Clear
 log-btn-save = 💾 Save Logs
 log-btn-save-tip = Export logs to selected format
 log-checkbox-autoscroll = Auto-scroll
-log-label-ip-filter = IP Filter:
+log-label-ip-filter = Filter:
+log-filter-apply-btn = Apply
+log-filter-tooltip = Packet filter usage:
+  - port == <port>: match source or destination port
+  - srcport == <port>: match source port only
+  - dstport == <port>: match destination port only
+  - ip == <ip_pattern>: match source or dest IP (e.g. 192.168.3.*, wildcard supported)
+  - payload == <hex>: match full payload (e.g. 010203 or 01:02:03)
+  - payload[1:3] == <hex>: match slice of payload
+  - payload matches "<regex>": regex match on payload string (case-insensitive)
+  - and / or / ( ): logical operators
+  - Implicit IP filter applies if input starts with a digit
 log-hdr-no = No.
 log-hdr-time = Time
 log-hdr-type = Type

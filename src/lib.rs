@@ -8,6 +8,7 @@ pub mod views;
 pub mod locales;
 pub mod mra;
 pub mod mra_defs;
+pub mod filter;
 
 use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -54,6 +55,8 @@ pub struct UdpStudioState {
     pub logs: Vec<LogEntry>,
     pub selected_log_idx: Option<usize>,
     pub filter_text: String,
+    pub filter_input: String,
+    pub filter_history: Vec<String>,
     pub auto_scroll: bool,
     pub log_export_format: LogExportFormat,
     pub filtered_indices: Vec<usize>,
@@ -279,17 +282,55 @@ impl UdpStudioState {
     }
 
     pub(crate) fn update_filtered_indices(&mut self) {
+        let parsed_filter = if self.filter_text.trim().is_empty() {
+            None
+        } else {
+            crate::filter::parse_filter(&self.filter_text).ok()
+        };
+
         self.filtered_indices = self.logs
             .iter()
             .enumerate()
             .filter(|(_, entry)| {
-                if self.filter_text.is_empty() {
-                    return true;
+                if let Some(ref filter) = parsed_filter {
+                    filter.eval(entry)
+                } else {
+                    self.filter_text.trim().is_empty()
                 }
-                entry.address_str.contains(&self.filter_text)
             })
             .map(|(idx, _)| idx)
             .collect();
+    }
+
+    pub(crate) fn apply_filter(&mut self) {
+        let trimmed = self.filter_input.trim().to_string();
+        if trimmed.is_empty() {
+            self.filter_text = String::new();
+            self.update_filtered_indices();
+            return;
+        }
+
+        match crate::filter::parse_filter(&trimmed) {
+            Ok(_) => {
+                self.filter_text = trimmed.clone();
+                self.update_filtered_indices();
+
+                // 履歴に追加 (数字始まり＝IPアドレスのみは覚えない)
+                let is_ip_only = trimmed.chars().next().map_or(false, |c| c.is_ascii_digit());
+                if !is_ip_only {
+                    if let Some(pos) = self.filter_history.iter().position(|x| x == &trimmed) {
+                        self.filter_history.remove(pos);
+                    }
+                    self.filter_history.insert(0, trimmed);
+                    if self.filter_history.len() > 20 {
+                        self.filter_history.truncate(20);
+                    }
+                }
+            }
+            Err(err) => {
+                self.add_system_error(format!("Filter Syntax Error: {}", err));
+            }
+        }
     }
 
     pub(crate) fn send_packet(&mut self, target: &str, payload_type: PayloadType, payload: &str) {
@@ -787,6 +828,8 @@ impl MainApp {
             logs: Vec::new(),
             selected_log_idx: None,
             filter_text: String::new(),
+            filter_input: String::new(),
+            filter_history: Vec::new(),
             auto_scroll: true,
             log_export_format: LogExportFormat::Csv,
             filtered_indices: Vec::new(),

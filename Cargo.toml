@@ -17,6 +17,7 @@ dirs = "6.0.0"
 egui-i18n = { version = "0.2.0", features = ["fluent"] }
 sys-locale = "0.3.2"
 get_if_addrs = "0.5.3"
+regex = "1"
 
 [profile.release]
 opt-level = 3

@@ -161,7 +161,18 @@ log-btn-clear = 🗑 クリア
 log-btn-save = 💾 ログ保存
 log-btn-save-tip = 選択した形式でログをエクスポートします
 log-checkbox-autoscroll = 自動スクロール
-log-label-ip-filter = IPフィルター:
+log-label-ip-filter = フィルター:
+log-filter-apply-btn = 適用
+log-filter-tooltip = パケットフィルターの使い方:
+  - port == <ポート>: 送信元または送信先ポート
+  - srcport == <ポート>: 送信元ポートのみ
+  - dstport == <ポート>: 送信先ポートのみ
+  - ip == <IP>: 送信元または送信先IP (例: 192.168.3.* ワイルドカード可)
+  - payload == <16進データ>: ペイロード完全一致 (例: 010203 または 01:02:03)
+  - payload[1:3] == <16進データ>: ペイロードのスライス一致
+  - payload matches "<正規表現>": ペイロードテキストの正規表現マッチ (大文字小文字無視)
+  - and / or / ( ): 複数条件の論理結合
+  - 数字で始まる場合は、暗黙的にIPフィルターとして動作します
 log-hdr-no = No.
 log-hdr-time = 時間
 log-hdr-type = タイプ

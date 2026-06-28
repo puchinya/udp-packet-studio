@@ -192,11 +192,85 @@ impl UdpStudioState {
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.label(tr("log-label-ip-filter"));
-                    if ui.add(
-                        egui::TextEdit::singleline(&mut self.filter_text)
-                            .desired_width(f32::INFINITY)
-                    ).changed() {
-                        self.update_filtered_indices();
+                    
+                    let help_response = {
+                        let size = egui::vec2(16.0, 16.0);
+                        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        if ui.is_rect_visible(rect) {
+                            let painter = ui.painter();
+                            let bg_color = if response.hovered() {
+                                egui::Color32::from_rgb(0, 120, 215)
+                            } else {
+                                egui::Color32::from_rgb(180, 180, 180)
+                            };
+                            painter.circle_filled(rect.center(), 8.0, bg_color);
+                            painter.text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "?",
+                                egui::FontId::new(11.0, egui::FontFamily::Proportional),
+                                egui::Color32::WHITE,
+                            );
+                        }
+                        response
+                    };
+                    help_response.on_hover_text(tr("log-filter-tooltip"));
+
+                    let is_valid = if self.filter_input.trim().is_empty() {
+                        None
+                    } else {
+                        Some(crate::filter::parse_filter(&self.filter_input).is_ok())
+                    };
+
+                    let original_extreme_bg = ui.visuals().extreme_bg_color;
+                    let original_text_color = ui.style().visuals.override_text_color;
+
+                    if let Some(valid) = is_valid {
+                        if valid {
+                            ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(0, 80, 0);
+                            ui.style_mut().visuals.override_text_color = Some(egui::Color32::WHITE);
+                        } else {
+                            ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(120, 0, 0);
+                            ui.style_mut().visuals.override_text_color = Some(egui::Color32::WHITE);
+                        }
+                    }
+
+                    let apply_btn_width = 60.0;
+                    let history_btn_width = if !self.filter_history.is_empty() { 30.0 } else { 0.0 };
+                    let input_width = (ui.available_width() - apply_btn_width - history_btn_width - 30.0).max(100.0);
+
+                    let text_edit_response = ui.add(
+                        egui::TextEdit::singleline(&mut self.filter_input)
+                            .desired_width(input_width)
+                    );
+
+                    ui.style_mut().visuals.extreme_bg_color = original_extreme_bg;
+                    ui.style_mut().visuals.override_text_color = original_text_color;
+
+                    let is_syntax_valid = is_valid.unwrap_or(true);
+                    let enter_pressed = is_syntax_valid
+                        && text_edit_response.lost_focus()
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    let apply_clicked = ui.add_enabled(is_syntax_valid, egui::Button::new(tr("log-filter-apply-btn"))).clicked();
+
+                    if enter_pressed || apply_clicked {
+                        self.apply_filter();
+                    }
+
+                    if !self.filter_history.is_empty() {
+                        ui.menu_button("▼", |ui| {
+                            let mut selected_history = None;
+                            for hist in &self.filter_history {
+                                if ui.selectable_label(false, hist).clicked() {
+                                    selected_history = Some(hist.clone());
+                                    ui.close();
+                                }
+                            }
+                            if let Some(hist) = selected_history {
+                                self.filter_input = hist;
+                                self.apply_filter();
+                            }
+                        });
                     }
                 }
             );
