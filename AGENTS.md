@@ -190,5 +190,24 @@ To ensure user control over the codebase and repository:
 - **Do NOT commit (`git commit`) or push (`git push`) automatically.**
 - All changes should be made to the local files. Notify the user of the modified files so they can inspect, commit, and push them manually.
 
+---
+
+## 📋 9. 要望整理とGitHub Issue自動作成の義務 (Requirements Refinement & Auto Issue Creation)
+
+ユーザーから新機能の追加やバグ修正などの新たな開発タスクを依頼された際は、**実際のコード変更や実装を開始する前に、必ず以下のプロセスを自律的に実行してください。** ユーザーから個別の指示がない場合でも、この挙動をデフォルトとします。
+
+- **要望の整理とタスクの切り出し**:
+  - 依頼内容を分析し、修正対象のファイルや設計案、具体的な実装ToDoリスト（Markdownのチェックボックス形式）を整理します。
+- **マイルストーン情報の読み込み**:
+  - ローカルの `.agents/active_milestone.json` が存在する場合はその情報をロードし、記述されているアクティブなマイルストーン名およびマイルストーン番号（`number`）を取得します。
+- **GitHub Issueの自動起票**:
+  - GitHub MCPサーバーの `issue_write` ツールを使用し、整理した要件とToDoリストを本文に含めたIssueをGitHub上に自動で作成します。この際、取得したマイルストーン番号を必ず紐付けます。
+- **Issue URLの提示**:
+  - 起票完了後、作成されたGitHubのIssue URLをユーザーに提示し、タスクのスコープに合意を得たうえで、コードの編集（実装ステップ）へと移行します。
+- **実装完了時のPull Request自動作成とIssue紐付け**:
+  - コードの修正とテスト確認が完了した段階で、自動的に作業用ブランチ（例: `feature/...`）をプッシュし、GitHub MCPサーバーの `create_pull_request` ツールを使用してPRを自動で作成します。
+  - PRを作成する際は、本文（body）の冒頭に **`Closes #<Issue番号>`** を記述し、対応するIssueとPRを自動で紐付けます（PRマージ時に自動で該当Issueがクローズされます）。
+
+
 
 
