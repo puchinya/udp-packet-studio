@@ -243,10 +243,11 @@ impl UdpStudioState {
 
                 // Resolve EPC dropdown items for the selected class
                 let epc_list: Vec<(String, String)> = {
-                    let current_deoj = self.el_deoj_custom.trim().to_uppercase();
-                    let eoj_key = if current_deoj.len() >= 4 {
-                        let g = u8::from_str_radix(&current_deoj[0..2], 16).ok();
-                        let c = u8::from_str_radix(&current_deoj[2..4], 16).ok();
+                    let deoj_raw = self.el_deoj_custom.trim().to_uppercase();
+                    let deoj_clean = deoj_raw.trim_start_matches("0X");
+                    let eoj_key = if deoj_clean.len() >= 4 {
+                        let g = u8::from_str_radix(&deoj_clean[0..2], 16).ok();
+                        let c = u8::from_str_radix(&deoj_clean[2..4], 16).ok();
                         g.zip(c)
                     } else {
                         None
@@ -293,8 +294,10 @@ impl UdpStudioState {
 
                             // EPC dropdown (if MRA class properties are available)
                             if !epc_list.is_empty() {
+                                let epc_raw = prop.epc.trim().to_uppercase();
+                                let epc_clean = epc_raw.trim_start_matches("0X");
                                 let current_epc_label = epc_list.iter()
-                                    .find(|(e, _)| *e == prop.epc.to_uppercase())
+                                    .find(|(e, _)| *e == epc_clean)
                                     .map(|(_, l)| l.clone())
                                     .unwrap_or_else(|| format!("Custom (0x{})", prop.epc));
                                 egui::ComboBox::from_id_salt(format!("epc_combo_{}", i))
@@ -302,7 +305,9 @@ impl UdpStudioState {
                                     .width(180.0)
                                     .show_ui(ui, |ui| {
                                         for (epc_str, label) in &epc_list {
-                                            let is_selected = prop.epc.to_uppercase() == *epc_str;
+                                            let epc_raw = prop.epc.trim().to_uppercase();
+                                            let epc_clean = epc_raw.trim_start_matches("0X");
+                                            let is_selected = epc_clean == *epc_str;
                                             if ui.selectable_label(is_selected, label).clicked() {
                                                 prop.epc = epc_str.clone();
                                             }
@@ -321,16 +326,19 @@ impl UdpStudioState {
 
                                 // Resolve EDT candidates from MRA property info
                                 let edt_candidates = {
-                                    let current_deoj = self.el_deoj_custom.trim().to_uppercase();
-                                    let class_key = if current_deoj.len() >= 4 {
-                                        let g = u8::from_str_radix(&current_deoj[0..2], 16).ok();
-                                        let c = u8::from_str_radix(&current_deoj[2..4], 16).ok();
+                                    let deoj_raw = self.el_deoj_custom.trim().to_uppercase();
+                                    let deoj_clean = deoj_raw.trim_start_matches("0X");
+                                    let class_key = if deoj_clean.len() >= 4 {
+                                        let g = u8::from_str_radix(&deoj_clean[0..2], 16).ok();
+                                        let c = u8::from_str_radix(&deoj_clean[2..4], 16).ok();
                                         g.zip(c)
                                     } else {
                                         None
                                     };
 
-                                    let epc_val = u8::from_str_radix(prop.epc.trim_start_matches("0x"), 16).ok();
+                                    let epc_raw = prop.epc.trim().to_uppercase();
+                                    let epc_clean = epc_raw.trim_start_matches("0X");
+                                    let epc_val = u8::from_str_radix(epc_clean, 16).ok();
                                     
                                     if let (Some((g, c)), Some(epc)) = (class_key, epc_val) {
                                         self.mra_db.classes.get(&(g, c))

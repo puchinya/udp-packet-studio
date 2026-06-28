@@ -307,4 +307,18 @@ fn test_validate_payload() {
     assert!(validate_payload("12 3x", PayloadType::Hex).is_err()); // invalid char 'x'
 }
 
+#[test]
+fn test_mra_candidates_loading() {
+    let db = udp_packet_studio::mra::MraDatabase::load();
+    // 0x0130 is Air Conditioner
+    let class_info = db.classes.get(&(0x01, 0x30)).expect("Air Conditioner class not found");
+    // 0xB0 is Operation Mode Setting
+    let prop = class_info.properties.get(&0xB0).expect("0xB0 property not found");
+    assert!(!prop.edt_candidates.is_empty(), "0xB0 edt_candidates should not be empty");
+    
+    // We expect candidates like "41" (Auto), "42" (Cooling), etc.
+    let has_cooling = prop.edt_candidates.iter().any(|(val, name_ja, _)| val == "42" && name_ja == "冷房");
+    assert!(has_cooling, "Candidate '42' (冷房) not found in 0xB0");
+}
+
 
