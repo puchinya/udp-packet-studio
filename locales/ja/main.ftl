@@ -150,6 +150,9 @@ composer-ip-preset-section = プリセット
 composer-ip-preset-nif-bcast = NIF ブロードキャスト
 composer-ip-history-section = 履歴
 
+composer-port-preset-section = プリセット
+composer-port-preset-echonet = ECHONET Lite : 3610
+
 # Log Viewer Tab
 log-btn-clear = 🗑 クリア
 log-btn-save = 💾 ログ保存

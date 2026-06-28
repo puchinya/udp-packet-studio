@@ -150,6 +150,9 @@ composer-ip-preset-section = Presets
 composer-ip-preset-nif-bcast = NIF Broadcast
 composer-ip-history-section = History
 
+composer-port-preset-section = Presets
+composer-port-preset-echonet = ECHONET Lite : 3610
+
 # Log Viewer Tab
 log-btn-clear = 🗑 Clear
 log-btn-save = 💾 Save Logs
