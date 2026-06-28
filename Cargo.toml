@@ -1,22 +1,22 @@
 [package]
 name = "udp-packet-studio"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.34", default-features = false, features = ["wgpu", "default_fonts"] }
-egui = "0.34"
-egui_dock = "0.19"
-egui_extras = "0.34"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-rfd = "0.15"
-chrono = { version = "0.4", features = ["serde"] }
+eframe = { version = "0.35.0", default-features = false, features = ["wgpu", "default_fonts"] }
+egui = "0.35.0"
+egui_dock = "0.20.0"
+egui_extras = "0.35.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+serde_yaml = "0.9.34-deprecated"
+rfd = "0.17.2"
+chrono = { version = "0.4.45", features = ["serde"] }
 dirs = "6.0.0"
-egui-i18n = { version = "0.2", features = ["fluent"] }
+egui-i18n = { version = "0.2.0", features = ["fluent"] }
 sys-locale = "0.3.2"
-get_if_addrs = "0.5"
+get_if_addrs = "0.5.3"
 
 [profile.release]
 opt-level = 3

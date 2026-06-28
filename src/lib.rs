@@ -783,7 +783,7 @@ impl eframe::App for MainApp {
                             top: 14,
                             bottom: 14,
                         }))
-                    .show_inside(ui, |ui| {
+                    .show(ui, |ui| {
                         // Title bar background drag/double-click action covering the entire bar area
                         let title_bar_rect = ui.max_rect();
                         let drag_resp = ui.interact(title_bar_rect, ui.id().with("title_bar_drag"), egui::Sense::click_and_drag());
@@ -990,7 +990,7 @@ impl eframe::App for MainApp {
                             se: 12,
                         })
                         .inner_margin(egui::Margin::symmetric(12, 6)))
-                    .show_inside(ui, |ui| {
+                    .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             if self.state.is_listening {
                                 ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
