@@ -5,6 +5,8 @@ use crate::types::{LogDirection, LogEntry, LogExportFormat};
 
 impl UdpStudioState {
     pub fn show_log_viewer(&mut self, ui: &mut egui::Ui) {
+        ui.style_mut().visuals.error_fg_color = egui::Color32::TRANSPARENT;
+        ui.style_mut().visuals.warn_fg_color = egui::Color32::TRANSPARENT;
         crate::locales::init_translations();
         let lang_id = self.language_id();
         let tr = |key: &str| {
@@ -137,7 +139,9 @@ impl UdpStudioState {
                                 }
                             }
                             LogExportFormat::Pcap => {
-                                let listener_addr = format!("{}:{}", self.listener_ip, self.listener_port);
+                                let listener_addr = self.get_selected_socket()
+                                    .map(|s| format!("{}:{}", s.ip, s.port))
+                                    .unwrap_or_else(|| "0.0.0.0:9000".to_string());
                                 write_pcap_helper(&path, &self.logs, &listener_addr)
                             }
                             LogExportFormat::Csv => {
@@ -201,125 +205,173 @@ impl UdpStudioState {
 
             let filtered_indices = &self.filtered_indices;
 
-            let mut table = TableBuilder::new(ui)
-                .striped(true)
-                .resizable(true)
-                .sense(egui::Sense::click()) // Add click sense to enable selection!
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::exact(45.0))  // No.
-                .column(Column::exact(100.0)) // Time
-                .column(Column::exact(80.0))  // Type
-                .column(Column::exact(110.0)) // IP Address
-                .column(Column::exact(55.0))  // Port
-                .column(Column::exact(60.0))  // Length
-                .column(Column::remainder());  // Info/Payload
+            let remaining_height = ui.available_height();
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), remaining_height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    let mut table = TableBuilder::new(ui)
+                        .striped(true)
+                        .resizable(true)
+                        .vscroll(true)
+                        .sense(egui::Sense::click()) // Add click sense to enable selection!
+                        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                        .column(Column::exact(45.0))  // No.
+                        .column(Column::exact(100.0)) // Time
+                        .column(Column::exact(80.0))  // Type
+                        .column(Column::exact(110.0)) // Source IP
+                        .column(Column::exact(70.0))  // Send Port
+                        .column(Column::exact(110.0)) // Dest IP
+                        .column(Column::exact(70.0))  // Recv Port
+                        .column(Column::exact(60.0))  // Length
+                        .column(Column::remainder());  // Info/Payload
 
-            if let Some(row_pos) = scroll_to_row_idx {
-                table = table.scroll_to_row(row_pos, None);
-            }
+                    if let Some(row_pos) = scroll_to_row_idx {
+                        table = table.scroll_to_row(row_pos, None);
+                    }
 
-            table = table.stick_to_bottom(self.auto_scroll);
+                    table = table.stick_to_bottom(self.auto_scroll);
 
-            table
-                .header(28.0, |mut header| {
-                    header.col(|ui| { ui.strong(tr("log-hdr-no")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-time")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-type")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-ip")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-port")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-length")); });
-                    header.col(|ui| { ui.strong(tr("log-hdr-info")); });
-                })
-                .body(|body| {
-                    body.rows(32.0, filtered_indices.len(), |mut row| {
-                        let row_index = row.index();
-                        let orig_idx = filtered_indices[row_index];
-                        let entry = &self.logs[orig_idx];
-                        let is_selected = Some(orig_idx) == self.selected_log_idx;
+                    table
+                        .header(28.0, |mut header| {
+                            header.col(|ui| { ui.strong(tr("log-hdr-no")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-time")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-type")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-source-ip")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-send-port")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-dest-ip")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-recv-port")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-length")); });
+                            header.col(|ui| { ui.strong(tr("log-hdr-info")); });
+                        })
+                        .body(|body| {
+                            body.rows(32.0, filtered_indices.len(), |mut row| {
+                                let row_index = row.index();
+                                let orig_idx = filtered_indices[row_index];
+                                let entry = &self.logs[orig_idx];
+                                let is_selected = Some(orig_idx) == self.selected_log_idx;
 
-                        let (direction_text, color) = match entry.direction {
-                            LogDirection::Sent => ("SENT", egui::Color32::from_rgb(100, 220, 100)),
-                            LogDirection::Received => ("RECV", egui::Color32::from_rgb(100, 180, 255)),
-                            LogDirection::SystemInfo => ("INFO", egui::Color32::from_rgb(200, 200, 200)),
-                            LogDirection::SystemError => ("ERROR", egui::Color32::from_rgb(255, 90, 90)),
-                        };
+                                let (direction_text, color) = match entry.direction {
+                                    LogDirection::Sent => ("SENT", egui::Color32::from_rgb(100, 220, 100)),
+                                    LogDirection::Received => ("RECV", egui::Color32::from_rgb(100, 180, 255)),
+                                    LogDirection::SystemInfo => ("INFO", egui::Color32::from_rgb(200, 200, 200)),
+                                    LogDirection::SystemError => ("ERROR", egui::Color32::from_rgb(255, 90, 90)),
+                                };
 
-                        let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
-                        let preview_truncated = &entry.preview_str;
+                                let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
+                                let preview_truncated = &entry.preview_str;
 
-                        let ip_str = if entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError {
-                            "-".to_string()
-                        } else {
-                            entry.address.ip().to_string()
-                        };
+                                let is_system = entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError;
+                                
+                                let src_ip_str = if is_system {
+                                    "-".to_string()
+                                } else if entry.direction == LogDirection::Sent {
+                                    entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+                                } else {
+                                    entry.address.ip().to_string()
+                                };
 
-                        let port_str = if entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError {
-                            "-".to_string()
-                        } else {
-                            entry.address.port().to_string()
-                        };
+                                let send_port_str = if is_system {
+                                    "-".to_string()
+                                } else if entry.direction == LogDirection::Sent {
+                                    entry.local_port.clone().unwrap_or_else(|| "0".to_string())
+                                } else {
+                                    entry.address.port().to_string()
+                                };
 
-                        row.set_selected(is_selected);
-                        
-                        let mut clicked = false;
+                                let dest_ip_str = if is_system {
+                                    "-".to_string()
+                                } else if entry.direction == LogDirection::Sent {
+                                    entry.address.ip().to_string()
+                                } else {
+                                    entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+                                };
 
-                        // Use borderless selectable buttons to ensure clicks on the text labels are captured
-                        row.col(|ui| {
-                            let text = egui::RichText::new(format!("#{}", orig_idx + 1)).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
+                                let recv_port_str = if is_system {
+                                    "-".to_string()
+                                } else if entry.direction == LogDirection::Sent {
+                                    entry.address.port().to_string()
+                                } else {
+                                    entry.local_port.clone().unwrap_or_else(|| "0".to_string())
+                                };
+
+                                row.set_selected(is_selected);
+                                
+                                let mut clicked = false;
+
+                                // Use borderless selectable buttons to ensure clicks on the text labels are captured
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(format!("#{}", orig_idx + 1)).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(&time_str).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(direction_text).color(color);
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(&src_ip_str).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(&send_port_str).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(&dest_ip_str).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(&recv_port_str).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(format!("{} B", entry.data.len())).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+                                row.col(|ui| {
+                                    let text = egui::RichText::new(preview_truncated).monospace();
+                                    let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    if res.clicked() {
+                                        clicked = true;
+                                    }
+                                });
+
+                                // Select row if the row itself or any cell inside it is clicked
+                                if clicked || row.response().clicked() {
+                                    new_selection = Some(orig_idx);
+                                }
+                            });
                         });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(&time_str).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(direction_text).color(color);
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(&ip_str).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(&port_str).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(format!("{} B", entry.data.len())).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-                        row.col(|ui| {
-                            let text = egui::RichText::new(preview_truncated).monospace();
-                            let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
-                            if res.clicked() {
-                                clicked = true;
-                            }
-                        });
-
-                        // Select row if the row itself or any cell inside it is clicked
-                        if clicked || row.response().clicked() {
-                            new_selection = Some(orig_idx);
-                        }
-                    });
-                });
+                }
+            );
         });
 
         self.selected_log_idx = new_selection;
@@ -353,13 +405,20 @@ pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_add
             continue;
         }
 
+        let entry_local_ip = entry.local_ip.as_deref()
+            .and_then(|ip| ip.parse::<std::net::IpAddr>().ok())
+            .unwrap_or(local_ip_parsed);
+        let entry_local_port = entry.local_port.as_deref()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(local_port);
+
         let src_addr = match entry.direction {
             LogDirection::Received => entry.address,
-            LogDirection::Sent => SocketAddr::new(local_ip_parsed, local_port),
+            LogDirection::Sent => SocketAddr::new(entry_local_ip, entry_local_port),
             _ => continue,
         };
         let dest_addr = match entry.direction {
-            LogDirection::Received => SocketAddr::new(local_ip_parsed, local_port),
+            LogDirection::Received => SocketAddr::new(entry_local_ip, entry_local_port),
             LogDirection::Sent => entry.address,
             _ => continue,
         };

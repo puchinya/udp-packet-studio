@@ -241,7 +241,8 @@ impl UdpStudioState {
 
         ui.vertical(|ui| {
             // Listener Status Warning
-            if !self.is_listening {
+            let is_listening = self.get_selected_socket().map(|s| s.is_listening).unwrap_or(false);
+            if !is_listening {
                 egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(45, 20, 20))
                     .corner_radius(egui::CornerRadius::same(4))
@@ -379,10 +380,13 @@ impl UdpStudioState {
                 ui.add_space(15.0);
                 
                 ui.horizontal(|ui| {
-                    let is_bound = self.is_listening;
+                    let is_bound = self.get_selected_socket().map(|s| s.is_listening).unwrap_or(false);
                     let is_payload_valid = payload_validation.is_ok();
+                    let is_ip_valid = !self.composer_ip.trim().is_empty();
+                    let is_port_valid = self.composer_port.trim().parse::<u16>().is_ok();
+                    
                     let send_btn = ui.add_enabled(
-                        is_bound && is_payload_valid, 
+                        is_bound && is_payload_valid && is_ip_valid && is_port_valid, 
                         egui::Button::new(tr("composer-btn-send")).min_size(egui::vec2(120.0, 32.0))
                     );
                     

@@ -71,6 +71,7 @@ pub fn setup_custom_styles(ctx: &egui::Context) {
     
     visuals.selection.bg_fill = egui::Color32::from_rgb(79, 110, 242); // selection accent color
     visuals.selection.stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+
     
     visuals.panel_fill = egui::Color32::from_rgb(13, 16, 21); // outer panel / background fill
     visuals.window_fill = egui::Color32::from_rgb(20, 24, 33); // preferences / dialog window fill

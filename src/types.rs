@@ -57,6 +57,8 @@ pub struct LogEntry {
     pub data: Vec<u8>,
     #[serde(skip)]
     pub preview_str: String,
+    pub local_ip: Option<String>,
+    pub local_port: Option<String>,
 }
 
 impl LogEntry {
@@ -66,11 +68,25 @@ impl LogEntry {
         address: SocketAddr,
         data: Vec<u8>,
     ) -> Self {
+        Self::new_with_local(timestamp, direction, address, None, data)
+    }
+
+    pub fn new_with_local(
+        timestamp: chrono::DateTime<Local>,
+        direction: LogDirection,
+        address: SocketAddr,
+        local_addr: Option<SocketAddr>,
+        data: Vec<u8>,
+    ) -> Self {
         let address_str = address.to_string();
         let (ip, port) = if direction == LogDirection::SystemInfo || direction == LogDirection::SystemError {
             ("-".to_string(), "-".to_string())
         } else {
             (address.ip().to_string(), address.port().to_string())
+        };
+        let (local_ip, local_port) = match local_addr {
+            Some(addr) => (Some(addr.ip().to_string()), Some(addr.port().to_string())),
+            None => (None, None),
         };
         let preview_str = match direction {
             LogDirection::Sent | LogDirection::Received => {
@@ -86,7 +102,8 @@ impl LogEntry {
             }
             LogDirection::SystemInfo | LogDirection::SystemError => {
                 let payload_preview = String::from_utf8_lossy(&data);
-                let preview = payload_preview.replace('\n', " ");if preview.chars().count() > 80 {
+                let preview = payload_preview.replace('\n', " ");
+                if preview.chars().count() > 80 {
                     format!("{}...", preview.chars().take(77).collect::<String>())
                 } else {
                     preview
@@ -103,8 +120,31 @@ impl LogEntry {
             address_str,
             data,
             preview_str,
+            local_ip,
+            local_port,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SocketConfig {
+    pub id: String,
+    pub name: String,
+    pub ip: String,
+    pub port: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActiveSocketState {
+    pub id: String,
+    pub name: String,
+    pub ip: String,
+    pub port: String,
+    pub is_listening: bool,
+    pub bound_addr: Option<String>,
+    pub error: Option<String>,
+    pub bind_time: Option<chrono::DateTime<chrono::Local>>,
+    pub multicast_groups: Vec<MulticastGroup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,6 +168,7 @@ pub enum Tab {
     LogViewer,
     Inspector,
     Multicast,
+    Sockets,
 }
 
 // Helper utility: parsing Hex sequences like "48 65 6c 6c 6f"

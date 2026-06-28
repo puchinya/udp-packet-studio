@@ -56,14 +56,12 @@ pub struct UdpStudioState {
     pub log_export_format: LogExportFormat,
     pub filtered_indices: Vec<usize>,
     
-    // Listener settings
-    pub listener_ip: String,
-    pub listener_port: String,
+    // Sockets settings
+    pub sockets: Vec<crate::types::ActiveSocketState>,
+    pub selected_socket_id: String,
+    pub multicast_selected_socket_id: String,
     pub listener_ip_history: Vec<String>,
     pub listener_port_history: Vec<String>,
-    pub is_listening: bool,
-    pub bound_addr: Option<String>,
-    pub listener_error: Option<String>,
     
     // Channels & Worker
     pub udp_worker: UdpWorker,
@@ -80,8 +78,7 @@ pub struct UdpStudioState {
     pub el_edt: String,
     pub el_show_helper: bool,
 
-    // Multicast fields
-    pub multicast_groups: Vec<MulticastGroup>,
+    // Multicast fields (UI inputs)
     pub multicast_input_addr: String,
     pub multicast_input_interface: String,
 
@@ -91,7 +88,6 @@ pub struct UdpStudioState {
     pub auto_save_enabled: bool,
     pub auto_save_dir: String,
     pub auto_save_format: LogExportFormat,
-    pub bind_time: Option<chrono::DateTime<chrono::Local>>,
     pub settings_open: bool,
     pub settings_reset_confirm_open: bool,
     pub about_open: bool,
@@ -101,10 +97,29 @@ pub struct UdpStudioState {
 }
 
 impl UdpStudioState {
+    pub fn get_selected_socket(&self) -> Option<&crate::types::ActiveSocketState> {
+        self.sockets.iter().find(|s| s.id == self.selected_socket_id)
+    }
+
+    pub fn get_selected_socket_mut(&mut self) -> Option<&mut crate::types::ActiveSocketState> {
+        self.sockets.iter_mut().find(|s| s.id == self.selected_socket_id)
+    }
+
     pub fn reset_settings(&mut self) {
         let def = SavedConfig::default();
-        self.listener_ip = def.listener_ip;
-        self.listener_port = def.listener_port;
+        self.sockets = def.sockets.iter().map(|s| crate::types::ActiveSocketState {
+            id: s.id.clone(),
+            name: s.name.clone(),
+            ip: s.ip.clone(),
+            port: s.port.clone(),
+            is_listening: false,
+            bound_addr: None,
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }).collect();
+        self.selected_socket_id = def.selected_socket_id.clone();
+        self.multicast_selected_socket_id = def.selected_socket_id;
         self.composer_ip = def.composer_ip;
         self.composer_port = def.composer_port;
         self.listener_ip_history = def.listener_ip_history;
@@ -116,7 +131,6 @@ impl UdpStudioState {
         self.auto_save_enabled = def.auto_save_enabled;
         self.auto_save_dir = def.auto_save_dir;
         self.auto_save_format = def.auto_save_format;
-        self.bind_time = None;
         self.language_setting = def.language_setting;
         self.save_config();
         self.update_logger_config();
@@ -173,8 +187,15 @@ impl UdpStudioState {
         {
             let config = SavedConfig {
                 collections: self.collections.clone(),
-                listener_ip: self.listener_ip.clone(),
-                listener_port: self.listener_port.clone(),
+                listener_ip: String::new(),
+                listener_port: String::new(),
+                sockets: self.sockets.iter().map(|s| crate::types::SocketConfig {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    ip: s.ip.clone(),
+                    port: s.port.clone(),
+                }).collect(),
+                selected_socket_id: self.selected_socket_id.clone(),
                 composer_ip: self.composer_ip.clone(),
                 composer_port: self.composer_port.clone(),
                 listener_ip_history: self.listener_ip_history.clone(),
@@ -193,13 +214,16 @@ impl UdpStudioState {
     }
 
     pub(crate) fn update_logger_config(&self) {
-        let listener_addr = format!("{}:{}", self.listener_ip, self.listener_port);
+        let listener_addr = self.get_selected_socket()
+            .map(|s| format!("{}:{}", s.ip, s.port))
+            .unwrap_or_else(|| "0.0.0.0:9000".to_string());
+        let bind_time = self.get_selected_socket().and_then(|s| s.bind_time);
         let _ = self.tx_logger.send(LoggerCommand::Configure {
             enabled: self.auto_save_enabled,
             dir: self.auto_save_dir.clone(),
             format: self.auto_save_format,
             listener_addr,
-            bind_time: self.bind_time,
+            bind_time,
         });
     }
 
@@ -256,6 +280,7 @@ impl UdpStudioState {
                     return;
                 }
                 self.udp_worker.send(UdpCommand::Send {
+                    id: self.selected_socket_id.clone(),
                     target: target.to_string(),
                     data,
                 });
@@ -264,6 +289,204 @@ impl UdpStudioState {
                 self.add_system_error(format!("Hex parsing error: {}", e));
             }
         }
+    }
+
+    pub fn show_socket_bind_controls(&mut self, ui: &mut egui::Ui, socket_idx: usize, is_in_navbar: bool) {
+        if socket_idx >= self.sockets.len() {
+            return;
+        }
+
+        let is_listening = self.sockets[socket_idx].is_listening;
+        let id = self.sockets[socket_idx].id.clone();
+
+        ui.horizontal(|ui| {
+            if is_in_navbar {
+                ui.label(self.tr("titlebar-bind-addr"));
+            }
+
+            ui.add_enabled_ui(!is_listening, |ui| {
+                let mut ip_chosen = None;
+                let current_ip = self.sockets[socket_idx].ip.clone();
+                let combo_id = format!("bind_ip_combo_{}", id);
+                egui::ComboBox::from_id_salt(combo_id)
+                    .selected_text(&current_ip)
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        if ui.selectable_label(current_ip == "0.0.0.0", "0.0.0.0 (All interfaces)").clicked() {
+                            ip_chosen = Some("0.0.0.0".to_string());
+                        }
+                        if ui.selectable_label(current_ip == "127.0.0.1", "127.0.0.1 (Loopback)").clicked() {
+                            ip_chosen = Some("127.0.0.1".to_string());
+                        }
+                        let ifaces = crate::get_local_interfaces();
+                        if !ifaces.is_empty() {
+                            ui.separator();
+                            for (name, ip) in &ifaces {
+                                if ui.selectable_label(current_ip == *ip, format!("{} ({})", ip, name)).clicked() {
+                                    ip_chosen = Some(ip.clone());
+                                }
+                            }
+                        }
+                    });
+                if let Some(ip) = ip_chosen {
+                    self.sockets[socket_idx].ip = ip;
+                    self.save_config();
+                }
+            });
+
+            ui.label(":");
+
+            ui.add_enabled_ui(!is_listening, |ui| {
+                let mut port_chosen = None;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+                    let edit_res = ui.add(egui::TextEdit::singleline(&mut self.sockets[socket_idx].port).desired_width(55.0));
+                    if edit_res.changed() {
+                        self.save_config();
+                    }
+                    ui.menu_button("▾", |ui| {
+                        ui.set_min_width(150.0);
+                        ui.menu_button("Presets", |ui| {
+                            if ui.button("ECHONET Lite : 3610").clicked() {
+                                port_chosen = Some("3610".to_string());
+                                ui.close();
+                            }
+                        });
+                        if !self.listener_port_history.is_empty() {
+                            ui.separator();
+                            for h in &self.listener_port_history {
+                                if ui.button(h).clicked() {
+                                    port_chosen = Some(h.clone());
+                                    ui.close();
+                                }
+                            }
+                        }
+                    });
+                });
+                if let Some(port) = port_chosen {
+                    self.sockets[socket_idx].port = port;
+                    self.save_config();
+                }
+            });
+
+            ui.add_space(5.0);
+
+            if is_listening {
+                if ui.add(egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
+                    self.udp_worker.send(UdpCommand::Unbind { id: id.clone() });
+                }
+            } else {
+                let is_port_valid = {
+                    let p = self.sockets[socket_idx].port.trim();
+                    !p.is_empty() && p != "0" && p.parse::<u16>().is_ok()
+                };
+                let bind_btn = ui.add_enabled(
+                    is_port_valid,
+                    egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
+                );
+                if bind_btn.clicked() {
+                    self.sockets[socket_idx].error = None;
+                    let ip = self.sockets[socket_idx].ip.trim().to_string();
+                    let port = self.sockets[socket_idx].port.trim().to_string();
+                    self.add_to_listener_history(port.clone());
+                    let bind_addr = format!("{}:{}", ip, port);
+                    self.udp_worker.send(UdpCommand::Bind { id: id.clone(), addr: bind_addr });
+                }
+            }
+
+            if let Some(ref err) = self.sockets[socket_idx].error {
+                ui.add_space(10.0);
+                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), format!("⚠ {}", err));
+            }
+        });
+    }
+
+    pub fn show_socket_list_window(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            // List of sockets
+            let mut socket_to_delete = None;
+            egui::ScrollArea::vertical().id_salt("sockets_scroll").show(ui, |ui| {
+                let len = self.sockets.len();
+                for idx in 0..len {
+                    let socket = &self.sockets[idx];
+                    let id = socket.id.clone();
+                    let is_main = id == "main";
+
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            // Editable socket name
+                            ui.label(self.tr("sockets-lbl-name"));
+                            let mut name_changed = false;
+                            let mut name = self.sockets[idx].name.clone();
+                            let edit_res = ui.text_edit_singleline(&mut name);
+                            if edit_res.changed() {
+                                self.sockets[idx].name = name;
+                                name_changed = true;
+                            }
+                            if edit_res.lost_focus() && name_changed {
+                                self.save_config();
+                            }
+
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if !is_main {
+                                    if ui.button("🗑").on_hover_text(self.tr("sockets-tooltip-delete")).clicked() {
+                                        socket_to_delete = Some(idx);
+                                    }
+                                }
+                            });
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Bind controls
+                        self.show_socket_bind_controls(ui, idx, false);
+                    });
+                    ui.add_space(8.0);
+                }
+            });
+
+            // Perform deletion if selected
+            if let Some(pos) = socket_to_delete {
+                let socket = &self.sockets[pos];
+                if socket.id != "main" {
+                    if socket.is_listening {
+                        self.udp_worker.send(UdpCommand::Unbind { id: socket.id.clone() });
+                    }
+                    if self.selected_socket_id == socket.id {
+                        self.selected_socket_id = "main".to_string();
+                    }
+                    if self.multicast_selected_socket_id == socket.id {
+                        self.multicast_selected_socket_id = "main".to_string();
+                    }
+                    self.sockets.remove(pos);
+                    self.save_config();
+                }
+            }
+
+            ui.add_space(10.0);
+            ui.separator();
+            ui.add_space(10.0);
+
+            // Button to add socket
+            let add_btn = ui.add(egui::Button::new(egui::RichText::new(self.tr("sockets-btn-add")).strong()));
+            if add_btn.clicked() {
+                let new_id = crate::types::generate_id();
+                let next_idx = self.sockets.len() + 1;
+                let default_name = format!("Socket {}", next_idx);
+                self.sockets.push(crate::types::ActiveSocketState {
+                    id: new_id,
+                    name: default_name,
+                    ip: "0.0.0.0".to_string(),
+                    port: "9000".to_string(),
+                    is_listening: false,
+                    bound_addr: None,
+                    error: None,
+                    bind_time: None,
+                    multicast_groups: Vec::new(),
+                });
+                self.save_config();
+            }
+        });
     }
 }
 
@@ -281,6 +504,7 @@ impl<'a> egui_dock::TabViewer for MyTabViewer<'a> {
             Tab::LogViewer => self.state.tr("tabs-logs").into(),
             Tab::Inspector => self.state.tr("tabs-inspector").into(),
             Tab::Multicast => self.state.tr("tabs-multicast").into(),
+            Tab::Sockets => self.state.tr("sockets-window-title").into(),
         }
     }
 
@@ -291,6 +515,7 @@ impl<'a> egui_dock::TabViewer for MyTabViewer<'a> {
             Tab::LogViewer => self.state.show_log_viewer(ui),
             Tab::Inspector => self.state.show_inspector(ui),
             Tab::Multicast => self.state.show_multicast(ui),
+            Tab::Sockets => self.state.show_socket_list_window(ui),
         }
     }
 
@@ -329,8 +554,8 @@ impl MainApp {
         
         // Split right to place LogViewer in the middle
         let [_left, middle] = surface.split_right(egui_dock::NodeIndex::root(), 0.25, vec![Tab::LogViewer]);
-        // Split middle to place Sender on the right. 'center' now points to the leaf node with Tab::LogViewer.
-        let [center, right] = surface.split_right(middle, 0.60, vec![Tab::Sender]);
+        // Split middle to place Sender and Sockets on the right. 'center' now points to the leaf node with Tab::LogViewer.
+        let [center, right] = surface.split_right(middle, 0.60, vec![Tab::Sender, Tab::Sockets]);
         // Split center below to place Inspector at the bottom of the center column
         let [_, _] = surface.split_below(center, 0.55, vec![Tab::Inspector]);
         // Split right below to place Multicast at the bottom of the right column
@@ -343,7 +568,10 @@ impl MainApp {
         let init_enabled = config.auto_save_enabled;
         let init_dir = config.auto_save_dir.clone();
         let init_format = config.auto_save_format;
-        let init_addr = format!("{}:{}", config.listener_ip, config.listener_port);
+        let selected_socket = config.sockets.iter().find(|s| s.id == config.selected_socket_id)
+            .or_else(|| config.sockets.first())
+            .unwrap();
+        let init_addr = format!("{}:{}", selected_socket.ip, selected_socket.port);
         
         std::thread::spawn(move || {
             let mut enabled = init_enabled;
@@ -540,13 +768,21 @@ impl MainApp {
             auto_scroll: true,
             log_export_format: LogExportFormat::Csv,
             filtered_indices: Vec::new(),
-            listener_ip: config.listener_ip,
-            listener_port: config.listener_port,
+            sockets: config.sockets.iter().map(|s| crate::types::ActiveSocketState {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                ip: s.ip.clone(),
+                port: s.port.clone(),
+                is_listening: false,
+                bound_addr: None,
+                error: None,
+                bind_time: None,
+                multicast_groups: Vec::new(),
+            }).collect(),
+            selected_socket_id: config.selected_socket_id.clone(),
+            multicast_selected_socket_id: config.selected_socket_id.clone(),
             listener_ip_history: config.listener_ip_history,
             listener_port_history: config.listener_port_history,
-            is_listening: false,
-            bound_addr: None,
-            listener_error: None,
             udp_worker,
             rx_event,
             el_tid: "0001".to_string(),
@@ -558,14 +794,12 @@ impl MainApp {
             el_epc_custom: "80".to_string(),
             el_edt: "30".to_string(),
             el_show_helper: false,
-            multicast_groups: Vec::new(),
             multicast_input_addr: "224.0.23.0".to_string(),
             multicast_input_interface: "0.0.0.0".to_string(),
             inspector_protocol: InspectorProtocol::Raw,
             auto_save_enabled: config.auto_save_enabled,
             auto_save_dir: config.auto_save_dir,
             auto_save_format: config.auto_save_format,
-            bind_time: None,
             settings_open: false,
             settings_reset_confirm_open: false,
             about_open: false,
@@ -700,58 +934,62 @@ impl eframe::App for MainApp {
         // Handle all incoming events from the background UDP worker thread
         while let Ok(event) = self.state.rx_event.try_recv() {
             match event {
-                 UdpEvent::Bound(addr) => {
-                     self.state.is_listening = true;
-                     self.state.bound_addr = Some(addr.to_string());
-                     self.state.bind_time = Some(chrono::Local::now());
-                     let addr_str = addr.to_string();
-                     if let Some(idx) = addr_str.rfind(':') {
-                         let (ip, port) = addr_str.split_at(idx);
-                         self.state.listener_ip = ip.to_string();
-                         self.state.listener_port = port[1..].to_string();
-                     } else {
-                         self.state.listener_ip = addr_str;
-                         self.state.listener_port = "9000".to_string();
+                 UdpEvent::Bound { id, addr } => {
+                     if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
+                         socket.is_listening = true;
+                         socket.bound_addr = Some(addr.to_string());
+                         socket.bind_time = Some(chrono::Local::now());
+                         socket.ip = addr.ip().to_string();
+                         socket.port = addr.port().to_string();
+                         socket.error = None;
+                         let msg = format!("Listening socket '{}' bound to {}", socket.name, addr);
+                         self.state.add_system_info(msg);
                      }
-                     self.state.listener_error = None;
-                     self.state.add_system_info(format!("Listening socket bound to {}", addr));
                      self.state.save_config();
                      self.state.update_logger_config();
                  }
-                 UdpEvent::Unbound => {
-                     self.state.is_listening = false;
-                     self.state.bound_addr = None;
-                     self.state.bind_time = None;
-                     self.state.multicast_groups.clear();
-                     self.state.add_system_info("Listening socket unbound".to_string());
+                 UdpEvent::Unbound { id } => {
+                     if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
+                         socket.is_listening = false;
+                         socket.bound_addr = None;
+                         socket.bind_time = None;
+                         socket.multicast_groups.clear();
+                         let msg = format!("Listening socket '{}' unbound", socket.name);
+                         self.state.add_system_info(msg);
+                     }
                      self.state.update_logger_config();
                  }
-                UdpEvent::Sent { to, data, timestamp } => {
-                    let entry = LogEntry::new(timestamp, LogDirection::Sent, to, data);
+                UdpEvent::Sent { id: _, to, data, timestamp, local_addr } => {
+                    let entry = LogEntry::new_with_local(timestamp, LogDirection::Sent, to, Some(local_addr), data);
                     self.state.push_log(entry);
                 }
-                UdpEvent::Received { from, data, timestamp } => {
-                    let entry = LogEntry::new(timestamp, LogDirection::Received, from, data);
+                UdpEvent::Received { id: _, from, data, timestamp, local_addr } => {
+                    let entry = LogEntry::new_with_local(timestamp, LogDirection::Received, from, Some(local_addr), data);
                     self.state.push_log(entry);
                     ctx.request_repaint();
                 }
-                UdpEvent::Error(err_msg) => {
-                    if !self.state.is_listening {
-                        self.state.listener_error = Some(err_msg.clone());
-                        self.state.multicast_groups.clear();
+                UdpEvent::Error { id, err } => {
+                    if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
+                        socket.error = Some(err.clone());
                     }
-                    self.state.add_system_error(err_msg);
+                    self.state.add_system_error(err);
                 }
-                UdpEvent::MulticastJoined { multi_addr, interface_addr } => {
-                    self.state.multicast_groups.push(MulticastGroup {
-                        multi_addr: multi_addr.clone(),
-                        interface_addr: interface_addr.clone(),
-                    });
-                    self.state.add_system_info(format!("Joined multicast group {} on interface {}", multi_addr, interface_addr));
+                UdpEvent::MulticastJoined { id, multi_addr, interface_addr } => {
+                    if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
+                        socket.multicast_groups.push(MulticastGroup {
+                            multi_addr: multi_addr.clone(),
+                            interface_addr: interface_addr.clone(),
+                        });
+                        let msg = format!("Socket '{}' joined multicast group {} on interface {}", socket.name, multi_addr, interface_addr);
+                        self.state.add_system_info(msg);
+                    }
                 }
-                UdpEvent::MulticastLeft { multi_addr, interface_addr } => {
-                    self.state.multicast_groups.retain(|g| !(g.multi_addr == *multi_addr && g.interface_addr == *interface_addr));
-                    self.state.add_system_info(format!("Left multicast group {} on interface {}", multi_addr, interface_addr));
+                UdpEvent::MulticastLeft { id, multi_addr, interface_addr } => {
+                    if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
+                        socket.multicast_groups.retain(|g| !(g.multi_addr == *multi_addr && g.interface_addr == *interface_addr));
+                        let msg = format!("Socket '{}' left multicast group {} on interface {}", socket.name, multi_addr, interface_addr);
+                        self.state.add_system_info(msg);
+                    }
                 }
             }
         }
@@ -861,105 +1099,41 @@ impl eframe::App for MainApp {
                             // Application title
                             ui.strong(concat!("UDP Packet Studio v", env!("CARGO_PKG_VERSION")));
                             
-                            ui.add_space(20.0);
+                            ui.add_space(15.0);
                             ui.separator();
                             ui.add_space(15.0);
                             
-                            // Integrated Socket Bind Controls
-                            ui.label(self.state.tr("titlebar-bind-addr"));
+                            // Dropdown for socket selection
+                            let current_socket_name = self.state.get_selected_socket()
+                                .map(|s| s.name.clone())
+                                .unwrap_or_else(|| "Main Socket".to_string());
                             
-                             ui.add_enabled_ui(!self.state.is_listening, |ui| {
-                                 let mut ip_chosen = None;
-                                 let current_ip = self.state.listener_ip.clone();
-                                 egui::ComboBox::from_id_salt("bind_ip_combo")
-                                     .selected_text(&current_ip)
-                                     .width(120.0)
-                                     .show_ui(ui, |ui| {
-                                         if ui.selectable_label(current_ip == "0.0.0.0", "0.0.0.0 (All interfaces)").clicked() {
-                                             ip_chosen = Some("0.0.0.0".to_string());
-                                         }
-                                         if ui.selectable_label(current_ip == "127.0.0.1", "127.0.0.1 (Loopback)").clicked() {
-                                             ip_chosen = Some("127.0.0.1".to_string());
-                                         }
-                                         let ifaces = crate::get_local_interfaces();
-                                         if !ifaces.is_empty() {
-                                             ui.separator();
-                                             for (name, ip) in &ifaces {
-                                                 if ui.selectable_label(current_ip == *ip, format!("{} ({})", ip, name)).clicked() {
-                                                     ip_chosen = Some(ip.clone());
-                                                 }
-                                             }
-                                         }
-                                     });
-                                 if let Some(ip) = ip_chosen {
-                                     self.state.listener_ip = ip;
-                                     self.state.save_config();
-                                 }
-                             });
-                             
-                             ui.label(":");
-                             
-                             ui.add_enabled_ui(!self.state.is_listening, |ui| {
-                                 let mut port_chosen = None;
-                                 ui.horizontal(|ui| {
-                                     ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
-                                     let edit_res = ui.add(egui::TextEdit::singleline(&mut self.state.listener_port).desired_width(55.0));
-                                     if edit_res.changed() {
-                                         self.state.save_config();
-                                     }
-                                     ui.menu_button("▾", |ui| {
-                                         ui.set_min_width(150.0);
-                                         ui.menu_button("Presets", |ui| {
-                                             if ui.button("ECHONET Lite : 3610").clicked() {
-                                                 port_chosen = Some("3610".to_string());
-                                                 ui.close();
-                                             }
-                                         });
-                                         if !self.state.listener_port_history.is_empty() {
-                                             ui.separator();
-                                             for h in &self.state.listener_port_history {
-                                                 if ui.button(h).clicked() {
-                                                     port_chosen = Some(h.clone());
-                                                     ui.close();
-                                                 }
-                                             }
-                                         }
-                                     });
-                                 });
-                                 if let Some(port) = port_chosen {
-                                     self.state.listener_port = port;
-                                     self.state.save_config();
-                                 }
-                             });
-                             
-                             ui.add_space(5.0);
-                             
-                             if self.state.is_listening {
-                                  if ui.add(egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
-                                      self.state.udp_worker.send(UdpCommand::Unbind);
-                                  }
-                              } else {
-                                   let is_port_valid = {
-                                       let p = self.state.listener_port.trim();
-                                       !p.is_empty() && p != "0" && p.parse::<u16>().is_ok()
-                                   };
-                                   let bind_btn = ui.add_enabled(
-                                       is_port_valid,
-                                       egui::Button::new(egui::RichText::new(self.state.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
-                                   );
-                                   if bind_btn.clicked() {
-                                       self.state.listener_error = None;
-                                       let ip = self.state.listener_ip.trim().to_string();
-                                       let port = self.state.listener_port.trim().to_string();
-                                       self.state.add_to_listener_history(port.clone());
-                                       let bind_addr = format!("{}:{}", ip, port);
-                                       self.state.udp_worker.send(UdpCommand::Bind(bind_addr));
-                                   }
-                             }
-                            
-                            if let Some(ref err) = self.state.listener_error {
-                                ui.add_space(10.0);
-                                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), format!("⚠ {}", err));
+                            let mut socket_changed = false;
+                            egui::ComboBox::from_id_salt("navbar_socket_select")
+                                .selected_text(&current_socket_name)
+                                .width(130.0)
+                                .show_ui(ui, |ui| {
+                                    for socket in &self.state.sockets {
+                                        if ui.selectable_value(&mut self.state.selected_socket_id, socket.id.clone(), &socket.name).clicked() {
+                                            socket_changed = true;
+                                        }
+                                    }
+                                });
+
+                            if socket_changed {
+                                self.state.save_config();
+                                self.state.update_logger_config();
+                            }
+
+
+
+                            ui.add_space(10.0);
+                            ui.separator();
+                            ui.add_space(10.0);
+
+                            // Bind controls for selected socket
+                            if let Some(selected_idx) = self.state.sockets.iter().position(|s| s.id == self.state.selected_socket_id) {
+                                self.state.show_socket_bind_controls(ui, selected_idx, true);
                             }
                             
                             // Align settings button to the right end of title bar
@@ -992,9 +1166,15 @@ impl eframe::App for MainApp {
                         .inner_margin(egui::Margin::symmetric(12, 6)))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            if self.state.is_listening {
+                            let (is_listening, bound_addr) = if let Some(s) = self.state.get_selected_socket() {
+                                (s.is_listening, s.bound_addr.clone())
+                            } else {
+                                (false, None)
+                            };
+
+                            if is_listening {
                                 ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
-                                if let Some(ref addr) = self.state.bound_addr {
+                                if let Some(ref addr) = bound_addr {
                                     let mut args = std::collections::HashMap::new();
                                     args.insert(std::borrow::Cow::Borrowed("addr"), addr.clone().into());
                                     ui.label(self.state.tr_with_args("statusbar-bound", &args));
@@ -1125,6 +1305,7 @@ impl eframe::App for MainApp {
                 dock_style.tab.inactive.corner_radius = egui::CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 };
                 dock_style.tab.hovered.corner_radius = egui::CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 };
                 dock_style.tab.focused.corner_radius = egui::CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 };
+
 
                 // Resizing separator styling
                 dock_style.separator.width = 1.0;
@@ -1486,6 +1667,8 @@ copies or substantial portions of the Software."
                 });
             self.state.about_open = open && !close_clicked;
         }
+
+
 
         show_resize_handles(ui);
     }

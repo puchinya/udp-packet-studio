@@ -109,9 +109,9 @@ fn test_gui_triggered_communication() {
     let worker = UdpWorker::spawn(tx_event, ctx.clone());
     
     // Bind to an ephemeral port
-    worker.send(UdpCommand::Bind("127.0.0.1:0".to_string()));
+    worker.send(UdpCommand::Bind { id: "main".to_string(), addr: "127.0.0.1:0".to_string() });
     let bound_addr = match rx_event.recv_timeout(std::time::Duration::from_secs(2)) {
-        Ok(UdpEvent::Bound(addr)) => addr,
+        Ok(UdpEvent::Bound { id: _, addr }) => addr,
         other => panic!("Expected Bound event, got {:?}", other),
     };
 
@@ -140,13 +140,21 @@ fn test_gui_triggered_communication() {
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_ip: "127.0.0.1".to_string(),
-        listener_port: "0".to_string(),
+        sockets: vec![udp_packet_studio::types::ActiveSocketState {
+            id: "main".to_string(),
+            name: "Main Socket".to_string(),
+            ip: "127.0.0.1".to_string(),
+            port: bound_addr.port().to_string(),
+            is_listening: true,
+            bound_addr: Some(bound_addr.to_string()),
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }],
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
         listener_ip_history: Vec::new(),
         listener_port_history: Vec::new(),
-        is_listening: true, // Needed to enable the send button
-        bound_addr: Some(bound_addr.to_string()),
-        listener_error: None,
         udp_worker: worker,
         rx_event,
         el_tid: "0001".to_string(),
@@ -158,14 +166,12 @@ fn test_gui_triggered_communication() {
         el_epc_custom: "80".to_string(),
         el_edt: "30".to_string(),
         el_show_helper: false,
-        multicast_groups: Vec::new(),
         multicast_input_addr: "224.0.23.0".to_string(),
         multicast_input_interface: "0.0.0.0".to_string(),
         inspector_protocol: InspectorProtocol::Raw,
         auto_save_enabled: false,
         auto_save_dir: String::new(),
         auto_save_format: LogExportFormat::Csv,
-        bind_time: None,
         settings_open: false,
         settings_reset_confirm_open: false,
         about_open: false,
@@ -248,9 +254,9 @@ fn test_collections_gui_interactions() {
     let worker = UdpWorker::spawn(tx_event, ctx.clone());
     
     // Bind to an ephemeral port
-    worker.send(UdpCommand::Bind("127.0.0.1:0".to_string()));
+    worker.send(UdpCommand::Bind { id: "main".to_string(), addr: "127.0.0.1:0".to_string() });
     let bound_addr = match rx_event.recv_timeout(std::time::Duration::from_secs(2)) {
-        Ok(UdpEvent::Bound(addr)) => addr,
+        Ok(UdpEvent::Bound { id: _, addr }) => addr,
         other => panic!("Expected Bound event, got {:?}", other),
     };
 
@@ -297,13 +303,21 @@ fn test_collections_gui_interactions() {
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_ip: "127.0.0.1".to_string(),
-        listener_port: "0".to_string(),
+        sockets: vec![udp_packet_studio::types::ActiveSocketState {
+            id: "main".to_string(),
+            name: "Main Socket".to_string(),
+            ip: "127.0.0.1".to_string(),
+            port: bound_addr.port().to_string(),
+            is_listening: true,
+            bound_addr: Some(bound_addr.to_string()),
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }],
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
         listener_ip_history: Vec::new(),
         listener_port_history: Vec::new(),
-        is_listening: true, // Needed to enable the send button
-        bound_addr: Some(bound_addr.to_string()),
-        listener_error: None,
         udp_worker: worker,
         rx_event,
         el_tid: "0001".to_string(),
@@ -315,14 +329,12 @@ fn test_collections_gui_interactions() {
         el_epc_custom: "80".to_string(),
         el_edt: "30".to_string(),
         el_show_helper: false,
-        multicast_groups: Vec::new(),
         multicast_input_addr: "224.0.23.0".to_string(),
         multicast_input_interface: "0.0.0.0".to_string(),
         inspector_protocol: InspectorProtocol::Raw,
         auto_save_enabled: false,
         auto_save_dir: String::new(),
         auto_save_format: LogExportFormat::Csv,
-        bind_time: None,
         settings_open: false,
         settings_reset_confirm_open: false,
         about_open: false,

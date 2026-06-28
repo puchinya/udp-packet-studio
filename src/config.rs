@@ -1,4 +1,4 @@
-use crate::types::{Collection, PacketDefinition, PayloadType, LogExportFormat};
+use crate::types::{Collection, PacketDefinition, PayloadType, LogExportFormat, SocketConfig};
 use serde::{Serialize, Deserialize};
 use crate::locales::LanguageSetting;
 
@@ -102,6 +102,10 @@ impl SavedCollections {
 pub struct SavedConfig {
     #[serde(skip)]
     pub collections: Vec<Collection>,
+    #[serde(default)]
+    pub sockets: Vec<SocketConfig>,
+    #[serde(default)]
+    pub selected_socket_id: String,
     pub listener_ip: String,
     pub listener_port: String,
     pub composer_ip: String,
@@ -134,6 +138,13 @@ impl Default for SavedConfig {
     fn default() -> Self {
         Self {
             collections: SavedCollections::default().collections,
+            sockets: vec![SocketConfig {
+                id: "main".to_string(),
+                name: "Main Socket".to_string(),
+                ip: "0.0.0.0".to_string(),
+                port: "9000".to_string(),
+            }],
+            selected_socket_id: "main".to_string(),
             listener_ip: "0.0.0.0".to_string(),
             listener_port: "9000".to_string(),
             composer_ip: "127.0.0.1".to_string(),
@@ -174,23 +185,49 @@ impl SavedConfig {
             }
         }
 
-
+        let mut migrated = false;
         let mut config = if let Some(mut cfg) = loaded_config {
+            if cfg.sockets.is_empty() {
+                cfg.sockets = vec![SocketConfig {
+                    id: "main".to_string(),
+                    name: "Main Socket".to_string(),
+                    ip: cfg.listener_ip.clone(),
+                    port: cfg.listener_port.clone(),
+                }];
+                cfg.selected_socket_id = "main".to_string();
+                migrated = true;
+            }
+
             let ifaces = crate::get_local_interfaces();
-            let mut found = false;
-            if cfg.listener_ip == "0.0.0.0" || cfg.listener_ip == "127.0.0.1" {
-                found = true;
-            } else {
-                for (_, ip) in &ifaces {
-                    if ip == &cfg.listener_ip {
-                        found = true;
-                        break;
+            for socket in &mut cfg.sockets {
+                let mut found = false;
+                if socket.ip == "0.0.0.0" || socket.ip == "127.0.0.1" {
+                    found = true;
+                } else {
+                    for (_, ip) in &ifaces {
+                        if ip == &socket.ip {
+                            found = true;
+                            break;
+                        }
                     }
                 }
+                if !found {
+                    socket.ip = "0.0.0.0".to_string();
+                    migrated = true;
+                }
             }
-            if !found {
-                cfg.listener_ip = "0.0.0.0".to_string();
+
+            if !cfg.sockets.iter().any(|s| s.id == cfg.selected_socket_id) {
+                if let Some(first) = cfg.sockets.first() {
+                    cfg.selected_socket_id = first.id.clone();
+                    migrated = true;
+                }
             }
+
+            if migrated {
+                cfg.save();
+            }
+
             cfg
         } else {
             Self::default()

@@ -28,13 +28,21 @@ fn make_test_state() -> UdpStudioState {
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_ip: String::new(),
-        listener_port: String::new(),
+        sockets: vec![udp_packet_studio::types::ActiveSocketState {
+            id: "main".to_string(),
+            name: "Main Socket".to_string(),
+            ip: "0.0.0.0".to_string(),
+            port: "9000".to_string(),
+            is_listening: false,
+            bound_addr: None,
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }],
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
         listener_ip_history: Vec::new(),
         listener_port_history: Vec::new(),
-        is_listening: false,
-        bound_addr: None,
-        listener_error: None,
         udp_worker: worker,
         rx_event: rx,
         el_tid: "0001".to_string(),
@@ -46,14 +54,12 @@ fn make_test_state() -> UdpStudioState {
         el_epc_custom: "80".to_string(),
         el_edt: "30".to_string(),
         el_show_helper: false,
-        multicast_groups: Vec::new(),
         multicast_input_addr: "224.0.23.0".to_string(),
         multicast_input_interface: "0.0.0.0".to_string(),
         inspector_protocol: InspectorProtocol::Raw,
         auto_save_enabled: false,
         auto_save_dir: String::new(),
         auto_save_format: LogExportFormat::Csv,
-        bind_time: None,
         settings_open: false,
         settings_reset_confirm_open: false,
         about_open: false,
@@ -255,3 +261,5 @@ fn test_validate_payload() {
     assert!(validate_payload("12 3", PayloadType::Hex).is_err()); // odd length
     assert!(validate_payload("12 3x", PayloadType::Hex).is_err()); // invalid char 'x'
 }
+
+

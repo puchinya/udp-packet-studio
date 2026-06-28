@@ -6,7 +6,7 @@ tabs-inspector = 🔍 Inspector
 tabs-multicast = 🌐 Multicast
 
 # Title Bar / Bind Controls
-titlebar-bind-addr = Bind Address:
+titlebar-bind-addr = Bind:
 titlebar-btn-stop = ⏹ Stop
 titlebar-btn-bind = ▶ Bind
 titlebar-status-active = ● Active
@@ -154,8 +154,10 @@ log-label-ip-filter = IP Filter:
 log-hdr-no = No.
 log-hdr-time = Time
 log-hdr-type = Type
-log-hdr-ip = IP
-log-hdr-port = Port
+log-hdr-source-ip = Src IP
+log-hdr-send-port = Src Port
+log-hdr-dest-ip = Dest IP
+log-hdr-recv-port = Dest Port
 log-hdr-length = Length
 log-hdr-info = Info (Preview)
 log-save-success = Logs saved successfully to { $path }
@@ -251,6 +253,13 @@ mc-hdr-multicast-addr = Group
 mc-hdr-interface-addr = Interface
 mc-btn-leave = Leave
 mc-err-empty-fields = Multicast address and Interface address cannot be empty.
+
+# Sockets Window / Dropdown
+sockets-window-title = 🔌 Sockets Manager
+sockets-btn-add = ➕ Add Socket
+sockets-lbl-name = Name:
+sockets-tooltip-delete = Delete this socket
+sockets-navbar-btn-list = 🔌 Sockets...
 
 
 

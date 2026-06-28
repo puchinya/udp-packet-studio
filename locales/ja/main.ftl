@@ -6,7 +6,7 @@ tabs-inspector = 🔍 インスペクター
 tabs-multicast = 🌐 マルチキャスト
 
 # Title Bar / Bind Controls
-titlebar-bind-addr = バインド先アドレス:
+titlebar-bind-addr = バインド先:
 titlebar-btn-stop = ⏹ 停止
 titlebar-btn-bind = ▶ バインド
 titlebar-status-active = ● 有効
@@ -154,9 +154,11 @@ log-label-ip-filter = IPフィルター:
 log-hdr-no = No.
 log-hdr-time = 時間
 log-hdr-type = タイプ
-log-hdr-ip = IP
-log-hdr-port = ポート
-log-hdr-length = 長さ
+log-hdr-source-ip = 送信元IP
+log-hdr-send-port = 送信元ポート
+log-hdr-dest-ip = 送信先IP
+log-hdr-recv-port = 送信先ポート
+log-hdr-length = データ長
 log-hdr-info = 情報 (プレビュー)
 log-save-success = ログが正常に { $path } に保存されました
 log-save-fail = ログの保存に失敗しました: { $msg }
@@ -251,6 +253,13 @@ mc-hdr-multicast-addr = グループ
 mc-hdr-interface-addr = インターフェース
 mc-btn-leave = 離脱
 mc-err-empty-fields = マルチキャストアドレスとインターフェースアドレスは空にできません。
+
+# Sockets Window / Dropdown
+sockets-window-title = 🔌 ソケットマネージャー
+sockets-btn-add = ➕ ソケット追加
+sockets-lbl-name = 名前:
+sockets-tooltip-delete = このソケットを削除する
+sockets-navbar-btn-list = 🔌 ソケット...
 
 
 

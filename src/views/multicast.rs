@@ -21,9 +21,33 @@ impl UdpStudioState {
         let mut join_trigger = None;
         let mut leave_trigger = None;
 
+        // Fetch currently selected socket's state for Multicast
+        let socket_idx = self.sockets.iter().position(|s| s.id == self.multicast_selected_socket_id);
+        let is_listening = socket_idx.map(|idx| self.sockets[idx].is_listening).unwrap_or(false);
+        let multicast_groups = socket_idx.map(|idx| self.sockets[idx].multicast_groups.clone()).unwrap_or_default();
+
         ui.vertical(|ui| {
+            // Socket Selection Dropdown
+            ui.horizontal(|ui| {
+                ui.label(tr("sockets-lbl-name"));
+                let current_socket_name = self.sockets.iter()
+                    .find(|s| s.id == self.multicast_selected_socket_id)
+                    .map(|s| s.name.clone())
+                    .unwrap_or_else(|| "Main Socket".to_string());
+                
+                egui::ComboBox::from_id_salt("multicast_socket_select")
+                    .selected_text(&current_socket_name)
+                    .width(150.0)
+                    .show_ui(ui, |ui| {
+                        for socket in &self.sockets {
+                            ui.selectable_value(&mut self.multicast_selected_socket_id, socket.id.clone(), &socket.name);
+                        }
+                    });
+            });
+            ui.add_space(8.0);
+
             // Listener Status Warning
-            if !self.is_listening {
+            if !is_listening {
                 egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(45, 20, 20))
                     .corner_radius(egui::CornerRadius::same(4))
@@ -159,7 +183,7 @@ impl UdpStudioState {
                         ui.add_space(12.0);
 
                         let join_btn = ui.add_enabled(
-                            self.is_listening,
+                            is_listening,
                             egui::Button::new(tr("mc-btn-join")).min_size(egui::vec2(120.0, 26.0))
                         );
                         if join_btn.clicked() {
@@ -179,7 +203,7 @@ impl UdpStudioState {
             ui.strong(tr("mc-title-joined-list"));
             ui.add_space(6.0);
 
-            if self.multicast_groups.is_empty() {
+            if multicast_groups.is_empty() {
                 ui.add(egui::Label::new(
                     egui::RichText::new(tr("mc-no-memberships"))
                         .color(egui::Color32::from_rgb(120, 130, 140))
@@ -196,7 +220,7 @@ impl UdpStudioState {
                         ui.label("");
                         ui.end_row();
 
-                        for group in &self.multicast_groups {
+                        for group in &multicast_groups {
                             ui.label(&group.multi_addr);
                             ui.label(&group.interface_addr);
                             
@@ -215,6 +239,7 @@ impl UdpStudioState {
                 self.add_system_error(tr("mc-err-empty-fields"));
             } else {
                 self.udp_worker.send(crate::udp_worker::UdpCommand::JoinMulticast {
+                    id: self.multicast_selected_socket_id.clone(),
                     multi_addr: m_addr,
                     interface_addr: i_addr,
                 });
@@ -223,6 +248,7 @@ impl UdpStudioState {
 
         if let Some((m_addr, i_addr)) = leave_trigger {
             self.udp_worker.send(crate::udp_worker::UdpCommand::LeaveMulticast {
+                id: self.multicast_selected_socket_id.clone(),
                 multi_addr: m_addr,
                 interface_addr: i_addr,
             });
