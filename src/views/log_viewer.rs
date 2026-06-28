@@ -156,46 +156,11 @@ impl UdpStudioState {
                                         LogDirection::SystemInfo => "INFO",
                                         LogDirection::SystemError => "ERROR",
                                     };
-                                    
-                                    let is_system = entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError;
-                                    
-                                    let src_ip_str = if is_system {
-                                        "-".to_string()
-                                    } else if entry.direction == LogDirection::Sent {
-                                        entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                    } else {
-                                        entry.address.ip().to_string()
-                                    };
-
-                                    let send_port_str = if is_system {
-                                        "-".to_string()
-                                    } else if entry.direction == LogDirection::Sent {
-                                        entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                    } else {
-                                        entry.address.port().to_string()
-                                    };
-
-                                    let dest_ip_str = if is_system {
-                                        "-".to_string()
-                                    } else if entry.direction == LogDirection::Sent {
-                                        entry.address.ip().to_string()
-                                    } else {
-                                        entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                    };
-
-                                    let recv_port_str = if is_system {
-                                        "-".to_string()
-                                    } else if entry.direction == LogDirection::Sent {
-                                        entry.address.port().to_string()
-                                    } else {
-                                        entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                    };
-
                                     let len_str = entry.data.len().to_string();
                                     let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
                                     let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
                                     csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
-                                        idx + 1, time_str, dir_str, src_ip_str, send_port_str, dest_ip_str, recv_port_str, len_str, hex_str, plain_str));
+                                        idx + 1, time_str, dir_str, entry.src_ip, entry.src_port, entry.dest_ip, entry.dest_port, len_str, hex_str, plain_str));
                                 }
                                 std::fs::write(&path, csv_content)
                             }
@@ -296,40 +261,6 @@ impl UdpStudioState {
                                 let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
                                 let preview_truncated = &entry.preview_str;
 
-                                let is_system = entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError;
-                                
-                                let src_ip_str = if is_system {
-                                    "-".to_string()
-                                } else if entry.direction == LogDirection::Sent {
-                                    entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                } else {
-                                    entry.address.ip().to_string()
-                                };
-
-                                let send_port_str = if is_system {
-                                    "-".to_string()
-                                } else if entry.direction == LogDirection::Sent {
-                                    entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                } else {
-                                    entry.address.port().to_string()
-                                };
-
-                                let dest_ip_str = if is_system {
-                                    "-".to_string()
-                                } else if entry.direction == LogDirection::Sent {
-                                    entry.address.ip().to_string()
-                                } else {
-                                    entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                };
-
-                                let recv_port_str = if is_system {
-                                    "-".to_string()
-                                } else if entry.direction == LogDirection::Sent {
-                                    entry.address.port().to_string()
-                                } else {
-                                    entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                };
-
                                 row.set_selected(is_selected);
                                 
                                 let mut clicked = false;
@@ -357,28 +288,28 @@ impl UdpStudioState {
                                     }
                                 });
                                 row.col(|ui| {
-                                    let text = egui::RichText::new(&src_ip_str).monospace();
+                                    let text = egui::RichText::new(&entry.src_ip).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                                     if res.clicked() {
                                         clicked = true;
                                     }
                                 });
                                 row.col(|ui| {
-                                    let text = egui::RichText::new(&send_port_str).monospace();
+                                    let text = egui::RichText::new(&entry.src_port).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                                     if res.clicked() {
                                         clicked = true;
                                     }
                                 });
                                 row.col(|ui| {
-                                    let text = egui::RichText::new(&dest_ip_str).monospace();
+                                    let text = egui::RichText::new(&entry.dest_ip).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                                     if res.clicked() {
                                         clicked = true;
                                     }
                                 });
                                 row.col(|ui| {
-                                    let text = egui::RichText::new(&recv_port_str).monospace();
+                                    let text = egui::RichText::new(&entry.dest_port).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                                     if res.clicked() {
                                         clicked = true;

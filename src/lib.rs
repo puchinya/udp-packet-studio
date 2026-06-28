@@ -625,46 +625,12 @@ impl MainApp {
                                             LogDirection::SystemInfo => "INFO",
                                             LogDirection::SystemError => "ERROR",
                                         };
-                                        
-                                        let is_system = entry.direction == LogDirection::SystemInfo || entry.direction == LogDirection::SystemError;
-                                        
-                                        let src_ip_str = if is_system {
-                                            "-".to_string()
-                                        } else if entry.direction == LogDirection::Sent {
-                                            entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                        } else {
-                                            entry.address.ip().to_string()
-                                        };
-
-                                        let send_port_str = if is_system {
-                                            "-".to_string()
-                                        } else if entry.direction == LogDirection::Sent {
-                                            entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                        } else {
-                                            entry.address.port().to_string()
-                                        };
-
-                                        let dest_ip_str = if is_system {
-                                            "-".to_string()
-                                        } else if entry.direction == LogDirection::Sent {
-                                            entry.address.ip().to_string()
-                                        } else {
-                                            entry.local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
-                                        };
-
-                                        let recv_port_str = if is_system {
-                                            "-".to_string()
-                                        } else if entry.direction == LogDirection::Sent {
-                                            entry.address.port().to_string()
-                                        } else {
-                                            entry.local_port.clone().unwrap_or_else(|| "0".to_string())
-                                        };
 
                                         let len_str = entry.data.len().to_string();
                                         let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
                                         let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
                                         let _ = writeln!(file, "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"",
-                                            time_str, dir_str, src_ip_str, send_port_str, dest_ip_str, recv_port_str, len_str, hex_str, plain_str);
+                                            time_str, dir_str, entry.src_ip, entry.src_port, entry.dest_ip, entry.dest_port, len_str, hex_str, plain_str);
                                     }
                                 }
                                 LogExportFormat::Json => {

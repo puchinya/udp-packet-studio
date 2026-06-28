@@ -59,6 +59,10 @@ pub struct LogEntry {
     pub preview_str: String,
     pub local_ip: Option<String>,
     pub local_port: Option<String>,
+    pub src_ip: String,
+    pub src_port: String,
+    pub dest_ip: String,
+    pub dest_port: String,
 }
 
 impl LogEntry {
@@ -88,6 +92,41 @@ impl LogEntry {
             Some(addr) => (Some(addr.ip().to_string()), Some(addr.port().to_string())),
             None => (None, None),
         };
+        
+        let is_system = direction == LogDirection::SystemInfo || direction == LogDirection::SystemError;
+        
+        let src_ip = if is_system {
+            "-".to_string()
+        } else if direction == LogDirection::Sent {
+            local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+        } else {
+            address.ip().to_string()
+        };
+
+        let src_port = if is_system {
+            "-".to_string()
+        } else if direction == LogDirection::Sent {
+            local_port.clone().unwrap_or_else(|| "0".to_string())
+        } else {
+            address.port().to_string()
+        };
+
+        let dest_ip = if is_system {
+            "-".to_string()
+        } else if direction == LogDirection::Sent {
+            address.ip().to_string()
+        } else {
+            local_ip.clone().unwrap_or_else(|| "0.0.0.0".to_string())
+        };
+
+        let dest_port = if is_system {
+            "-".to_string()
+        } else if direction == LogDirection::Sent {
+            address.port().to_string()
+        } else {
+            local_port.clone().unwrap_or_else(|| "0".to_string())
+        };
+
         let preview_str = match direction {
             LogDirection::Sent | LogDirection::Received => {
                 let hex_str = data.iter()
@@ -122,6 +161,10 @@ impl LogEntry {
             preview_str,
             local_ip,
             local_port,
+            src_ip,
+            src_port,
+            dest_ip,
+            dest_port,
         }
     }
 }
