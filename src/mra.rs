@@ -19,19 +19,50 @@ struct RawDefinitionsFile {
     definitions: HashMap<String, RawDefinition>,
 }
 
-fn extract_refs(val: &serde_json::Value, refs: &mut Vec<String>) {
+fn resolve_candidates(
+    val: &serde_json::Value,
+    defs_map: &HashMap<String, Vec<(String, String, String)>>,
+    out: &mut Vec<(String, String, String)>
+) {
     if let Some(obj) = val.as_object() {
+        // 1. Resolve $ref references from definitions.json
         if let Some(r) = obj.get("$ref").and_then(|r| r.as_str()) {
             if let Some(def_name) = r.split('/').last() {
-                refs.push(def_name.to_string());
+                if let Some(candidates) = defs_map.get(def_name) {
+                    out.extend(candidates.clone());
+                }
             }
         }
+        
+        // 2. Resolve inline enum arrays
+        if let Some(enum_arr) = obj.get("enum").and_then(|e| e.as_array()) {
+            for item in enum_arr {
+                if let Some(item_obj) = item.as_object() {
+                    if let Some(edt) = item_obj.get("edt").and_then(|e| e.as_str()) {
+                        let hex = edt.trim_start_matches("0x").to_uppercase();
+                        let descriptions = item_obj.get("descriptions");
+                        let name_ja = descriptions
+                            .and_then(|d| d.get("ja"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        let name_en = descriptions
+                            .and_then(|d| d.get("en"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        out.push((hex, name_ja, name_en));
+                    }
+                }
+            }
+        }
+
         for (_, v) in obj {
-            extract_refs(v, refs);
+            resolve_candidates(v, defs_map, out);
         }
     } else if let Some(arr) = val.as_array() {
         for v in arr {
-            extract_refs(v, refs);
+            resolve_candidates(v, defs_map, out);
         }
     }
 }
@@ -81,13 +112,7 @@ impl MraDatabase {
             let epc = u8::from_str_radix(p.epc.trim_start_matches("0x"), 16).unwrap_or(0);
             let mut edt_candidates = Vec::new();
             if let Some(ref data_val) = p.data {
-                let mut refs = Vec::new();
-                extract_refs(data_val, &mut refs);
-                for r in refs {
-                    if let Some(candidates) = defs_map.get(&r) {
-                        edt_candidates.extend(candidates.clone());
-                    }
-                }
+                resolve_candidates(data_val, defs_map, &mut edt_candidates);
             }
             let info = PropertyInfo {
                 epc,
