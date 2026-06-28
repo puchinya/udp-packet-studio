@@ -146,6 +146,10 @@ composer-btn-save = 💾 保存
 composer-save-default-col = マイリクエスト
 composer-save-created-req = リクエスト { $idx }
 
+composer-ip-preset-section = プリセット
+composer-ip-preset-nif-bcast = NIF ブロードキャスト
+composer-ip-history-section = 履歴
+
 # Log Viewer Tab
 log-btn-clear = 🗑 クリア
 log-btn-save = 💾 ログ保存

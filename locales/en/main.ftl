@@ -146,6 +146,10 @@ composer-btn-save = 💾 Save
 composer-save-default-col = My Requests
 composer-save-created-req = Request { $idx }
 
+composer-ip-preset-section = Presets
+composer-ip-preset-nif-bcast = NIF Broadcast
+composer-ip-history-section = History
+
 # Log Viewer Tab
 log-btn-clear = 🗑 Clear
 log-btn-save = 💾 Save Logs

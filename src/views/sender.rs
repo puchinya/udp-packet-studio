@@ -391,17 +391,63 @@ impl UdpStudioState {
                         // Row 1: Target IP
                         ui.label(tr("collections-edit-target-ip"));
                         ui.horizontal(|ui| {
-                            let mut ip_chosen = None;
+                            let mut ip_chosen: Option<String> = None;
                             ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
                             let edit_ip = ui.add(egui::TextEdit::singleline(&mut self.composer_ip).desired_width(120.0));
                             if edit_ip.changed() {
                                 self.save_config();
                             }
                             ui.menu_button("▾", |ui| {
-                                ui.set_min_width(120.0);
-                                if self.composer_ip_history.is_empty() {
-                                    ui.weak("No history");
-                                } else {
+                                ui.set_min_width(220.0);
+
+                                // ── Presets ──────────────────────────────────────
+                                ui.strong(tr("composer-ip-preset-section"));
+                                ui.separator();
+
+                                // Loopback
+                                if ui.button("127.0.0.1  (Loopback)").clicked() {
+                                    ip_chosen = Some("127.0.0.1".to_string());
+                                    ui.close();
+                                }
+                                // Global broadcast
+                                if ui.button("255.255.255.255  (Broadcast)").clicked() {
+                                    ip_chosen = Some("255.255.255.255".to_string());
+                                    ui.close();
+                                }
+                                // ECHONET Lite multicast
+                                if ui.button("224.0.23.0  (ECHONET Lite Multicast)").clicked() {
+                                    ip_chosen = Some("224.0.23.0".to_string());
+                                    ui.close();
+                                }
+
+                                // NIF broadcast addresses
+                                if let Ok(ifaces) = get_if_addrs::get_if_addrs() {
+                                    let mut shown_any = false;
+                                    for iface in &ifaces {
+                                        if let get_if_addrs::IfAddr::V4(ref v4) = iface.addr {
+                                            if let Some(broadcast) = v4.broadcast {
+                                                let bc_str = broadcast.to_string();
+                                                // skip loopback broadcast
+                                                if bc_str == "127.255.255.255" { continue; }
+                                                if !shown_any {
+                                                    ui.separator();
+                                                    ui.weak(tr("composer-ip-preset-nif-bcast"));
+                                                    shown_any = true;
+                                                }
+                                                let label = format!("{}  ({})", bc_str, iface.name);
+                                                if ui.button(&label).clicked() {
+                                                    ip_chosen = Some(bc_str);
+                                                    ui.close();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // ── History ──────────────────────────────────────
+                                if !self.composer_ip_history.is_empty() {
+                                    ui.separator();
+                                    ui.weak(tr("composer-ip-history-section"));
                                     for h in &self.composer_ip_history {
                                         if ui.button(h).clicked() {
                                             ip_chosen = Some(h.clone());
