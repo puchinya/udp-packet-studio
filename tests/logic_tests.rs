@@ -27,6 +27,8 @@ fn make_test_state() -> UdpStudioState {
         filter_text: String::new(),
         filter_input: String::new(),
         filter_history: Vec::new(),
+        dock_state_serialized: None,
+        reset_layout_requested: false,
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),

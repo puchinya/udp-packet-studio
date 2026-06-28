@@ -244,7 +244,7 @@ pub struct MulticastGroup {
     pub interface_addr: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tab {
     Collections,
     Sender,

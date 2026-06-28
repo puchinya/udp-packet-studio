@@ -140,6 +140,8 @@ pub struct SavedConfig {
     pub max_display_data_bytes: usize,
     #[serde(default = "default_max_log_lines")]
     pub max_log_lines: usize,
+    #[serde(default)]
+    pub dock_state: Option<String>,
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
@@ -173,6 +175,7 @@ impl Default for SavedConfig {
             language_setting: LanguageSetting::System,
             max_display_data_bytes: 128,
             max_log_lines: 10000,
+            dock_state: None,
         }
     }
 }

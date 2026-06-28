@@ -101,6 +101,8 @@ pub struct UdpStudioState {
     pub tx_logger: Sender<LoggerCommand>,
     pub language_setting: LanguageSetting,
     pub mra_db: mra::MraDatabase,
+    pub dock_state_serialized: Option<String>,
+    pub reset_layout_requested: bool,
 }
 
 impl UdpStudioState {
@@ -220,6 +222,7 @@ impl UdpStudioState {
                 language_setting: self.language_setting,
                 max_display_data_bytes: self.max_display_data_bytes,
                 max_log_lines: self.max_log_lines,
+                dock_state: self.dock_state_serialized.clone(),
             };
             config.save();
         }
@@ -614,18 +617,29 @@ impl MainApp {
         
         let config = SavedConfig::load();
         
-        // Setup initial docking layout tree (3-column split where center is stacked)
-        let mut dock_state = DockState::new(vec![Tab::Collections]);
-        let surface = dock_state.main_surface_mut();
-        
-        // Split right to place LogViewer in the middle
-        let [_left, middle] = surface.split_right(egui_dock::NodeIndex::root(), 0.25, vec![Tab::LogViewer]);
-        // Split middle to place Sender and Sockets on the right. 'center' now points to the leaf node with Tab::LogViewer.
-        let [center, right] = surface.split_right(middle, 0.60, vec![Tab::Sender, Tab::Sockets]);
-        // Split center below to place Inspector at the bottom of the center column
-        let [_, _] = surface.split_below(center, 0.55, vec![Tab::Inspector]);
-        // Split right below to place Multicast at the bottom of the right column
-        let [_, _] = surface.split_below(right, 0.55, vec![Tab::Multicast]);
+        // Try to restore docking layout from config
+        let mut dock_state = None;
+        if let Some(ref json_str) = config.dock_state {
+            if let Ok(state) = serde_json::from_str::<DockState<Tab>>(json_str) {
+                dock_state = Some(state);
+            }
+        }
+
+        let dock_state = dock_state.unwrap_or_else(|| {
+            // Setup initial docking layout tree (3-column split where center is stacked)
+            let mut ds = DockState::new(vec![Tab::Collections]);
+            let surface = ds.main_surface_mut();
+            
+            // Split right to place LogViewer in the middle
+            let [_left, middle] = surface.split_right(egui_dock::NodeIndex::root(), 0.25, vec![Tab::LogViewer]);
+            // Split middle to place Sender and Sockets on the right. 'center' now points to the leaf node with Tab::LogViewer.
+            let [center, right] = surface.split_right(middle, 0.60, vec![Tab::Sender, Tab::Sockets]);
+            // Split center below to place Inspector at the bottom of the center column
+            let [_, _] = surface.split_below(center, 0.55, vec![Tab::Inspector]);
+            // Split right below to place Multicast at the bottom of the right column
+            let [_, _] = surface.split_below(right, 0.55, vec![Tab::Multicast]);
+            ds
+        });
         
         let (tx_event, rx_event) = channel();
         let udp_worker = UdpWorker::spawn(tx_event, cc.egui_ctx.clone());
@@ -873,6 +887,8 @@ impl MainApp {
             tx_logger,
             language_setting: config.language_setting,
             mra_db,
+            dock_state_serialized: config.dock_state.clone(),
+            reset_layout_requested: false,
         };
 
         Self {
@@ -982,6 +998,29 @@ fn circle_button(
 
 impl eframe::App for MainApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if self.state.reset_layout_requested {
+            self.state.reset_layout_requested = false;
+
+            // Re-create default docking layout tree
+            let mut ds = DockState::new(vec![Tab::Collections]);
+            let surface = ds.main_surface_mut();
+            let [_left, middle] = surface.split_right(egui_dock::NodeIndex::root(), 0.25, vec![Tab::LogViewer]);
+            let [center, right] = surface.split_right(middle, 0.60, vec![Tab::Sender, Tab::Sockets]);
+            let [_, _] = surface.split_below(center, 0.55, vec![Tab::Inspector]);
+            let [_, _] = surface.split_below(right, 0.55, vec![Tab::Multicast]);
+            self.dock_state = ds;
+
+            // Serialize and save
+            if let Ok(current_json) = serde_json::to_string(&self.dock_state) {
+                self.state.dock_state_serialized = Some(current_json);
+            }
+            self.state.save_config();
+
+            // Send ViewportCommands to reset size and exit maximization
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(1100.0, 700.0)));
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+        }
+
         let is_focused = ui.ctx().input(|i| i.focused);
         if is_focused && !self.was_focused {
             ui.ctx().input_mut(|i| {
@@ -1384,6 +1423,22 @@ impl eframe::App for MainApp {
                     .draggable_tabs(false)
                     .tab_context_menus(false)
                     .show_inside(ui, &mut viewer);
+
+                // Auto-save layout if changed
+                if let Ok(current_json) = serde_json::to_string(&self.dock_state) {
+                    let mut needs_save = false;
+                    if let Some(ref last_json) = self.state.dock_state_serialized {
+                        if *last_json != current_json {
+                            needs_save = true;
+                        }
+                    } else {
+                        needs_save = true;
+                    }
+                    if needs_save {
+                        self.state.dock_state_serialized = Some(current_json);
+                        self.state.save_config();
+                    }
+                }
             });
 
         // Draw the settings dialog if open
@@ -1524,6 +1579,17 @@ impl eframe::App for MainApp {
                                 self.state.save_config();
                             }
                         });
+
+                        ui.add_space(12.0);
+                        ui.separator();
+                        ui.add_space(12.0);
+
+                        // Layout Settings
+                        ui.heading(self.state.tr("settings-layout-section"));
+                        ui.add_space(4.0);
+                        if ui.button(self.state.tr("settings-reset-layout-btn")).clicked() {
+                            self.state.reset_layout_requested = true;
+                        }
                         
                         ui.add_space(16.0);
                         ui.separator();
