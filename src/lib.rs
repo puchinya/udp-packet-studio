@@ -665,26 +665,20 @@ impl MainApp {
                                             let _ = file.write_all(&1u32.to_ne_bytes());
                                         }
                                         
-                                        let local_ip = listener_addr.split(':').next().unwrap_or("127.0.0.1");
-                                        let local_ip_parsed = local_ip.parse::<std::net::IpAddr>().unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
+                                        let local_ip_parsed = listener_addr.split(':').next().unwrap_or("127.0.0.1")
+                                            .parse::<std::net::IpAddr>().unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
                                         let local_port = listener_addr.split(':').nth(1).and_then(|p| p.parse::<u16>().ok()).unwrap_or(9000);
-                                        
-                                        let src_addr = match entry.direction {
-                                            LogDirection::Received => entry.address,
-                                            LogDirection::Sent => std::net::SocketAddr::new(local_ip_parsed, local_port),
-                                            _ => continue,
-                                        };
-                                        let dest_addr = match entry.direction {
-                                            LogDirection::Received => std::net::SocketAddr::new(local_ip_parsed, local_port),
-                                            LogDirection::Sent => entry.address,
-                                            _ => continue,
-                                        };
 
-                                        let src_ip = match src_addr.ip() {
+                                        let src_ip = entry.src_ip.parse::<std::net::IpAddr>().unwrap_or(local_ip_parsed);
+                                        let dest_ip = entry.dest_ip.parse::<std::net::IpAddr>().unwrap_or(local_ip_parsed);
+                                        let src_port = entry.src_port.parse::<u16>().unwrap_or(local_port);
+                                        let dest_port = entry.dest_port.parse::<u16>().unwrap_or(local_port);
+
+                                        let src_ip_v4 = match src_ip {
                                             std::net::IpAddr::V4(ip) => ip,
                                             _ => std::net::Ipv4Addr::new(127, 0, 0, 1),
                                         };
-                                        let dest_ip = match dest_addr.ip() {
+                                        let dest_ip_v4 = match dest_ip {
                                             std::net::IpAddr::V4(ip) => ip,
                                             _ => std::net::Ipv4Addr::new(127, 0, 0, 1),
                                         };
@@ -710,8 +704,8 @@ impl MainApp {
                                         let checksum_offset = packet_data.len();
                                         packet_data.extend_from_slice(&[0u8; 2]);
 
-                                        packet_data.extend_from_slice(&src_ip.octets());
-                                        packet_data.extend_from_slice(&dest_ip.octets());
+                                        packet_data.extend_from_slice(&src_ip_v4.octets());
+                                        packet_data.extend_from_slice(&dest_ip_v4.octets());
 
                                         let mut sum = 0u32;
                                         for i in (14..34).step_by(2) {
@@ -725,8 +719,8 @@ impl MainApp {
                                         packet_data[checksum_offset] = (checksum >> 8) as u8;
                                         packet_data[checksum_offset + 1] = (checksum & 0xff) as u8;
 
-                                        packet_data.extend_from_slice(&src_addr.port().to_be_bytes());
-                                        packet_data.extend_from_slice(&dest_addr.port().to_be_bytes());
+                                        packet_data.extend_from_slice(&src_port.to_be_bytes());
+                                        packet_data.extend_from_slice(&dest_port.to_be_bytes());
                                         let udp_len = (8 + payload_len) as u16;
                                         packet_data.extend_from_slice(&udp_len.to_be_bytes());
                                         packet_data.extend_from_slice(&0x0000u16.to_be_bytes());
