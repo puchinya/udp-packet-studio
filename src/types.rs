@@ -167,6 +167,40 @@ impl LogEntry {
             dest_port,
         }
     }
+
+    pub fn get_preview(&self, max_bytes: usize) -> String {
+        match self.direction {
+            LogDirection::Sent | LogDirection::Received => {
+                if self.data.is_empty() {
+                    return String::new();
+                }
+                let limit = std::cmp::min(self.data.len(), max_bytes);
+                let hex_str = self.data[..limit].iter()
+                    .map(|b| format!("{:02X}", b))
+                    .collect::<Vec<String>>()
+                    .join(" ");
+                if self.data.len() > max_bytes {
+                    if hex_str.is_empty() {
+                        "...".to_string()
+                    } else {
+                        format!("{}...", hex_str)
+                    }
+                } else {
+                    hex_str
+                }
+            }
+            LogDirection::SystemInfo | LogDirection::SystemError => {
+                let payload_preview = String::from_utf8_lossy(&self.data);
+                let preview = payload_preview.replace('\n', " ");
+                let char_limit = max_bytes.max(80);
+                if preview.chars().count() > char_limit {
+                    format!("{}...", preview.chars().take(char_limit.saturating_sub(3)).collect::<String>())
+                } else {
+                    preview
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

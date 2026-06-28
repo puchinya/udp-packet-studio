@@ -66,6 +66,8 @@ fn make_test_state() -> UdpStudioState {
         tx_logger,
         language_setting: udp_packet_studio::locales::LanguageSetting::English,
         mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128,
+        max_log_lines: 10000,
     }
 }
 

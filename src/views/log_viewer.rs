@@ -259,7 +259,7 @@ impl UdpStudioState {
                                 };
 
                                 let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
-                                let preview_truncated = &entry.preview_str;
+                                let preview_truncated = entry.get_preview(self.max_display_data_bytes);
 
                                 row.set_selected(is_selected);
                                 
@@ -323,7 +323,7 @@ impl UdpStudioState {
                                     }
                                 });
                                 row.col(|ui| {
-                                    let text = egui::RichText::new(preview_truncated).monospace();
+                                    let text = egui::RichText::new(&preview_truncated).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
                                     if res.clicked() {
                                         clicked = true;

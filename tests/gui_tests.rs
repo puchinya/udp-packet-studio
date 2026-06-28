@@ -178,6 +178,8 @@ fn test_gui_triggered_communication() {
         tx_logger,
         language_setting: LanguageSetting::English,
         mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128,
+        max_log_lines: 10000,
     };
 
     // Frame 1: Render the GUI to determine button layout & coordinate
@@ -341,6 +343,8 @@ fn test_collections_gui_interactions() {
         tx_logger,
         language_setting: LanguageSetting::English,
         mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128,
+        max_log_lines: 10000,
     };
 
     // ----------------------------------------------------
@@ -519,6 +523,130 @@ fn find_all_text_centers(shapes: &[egui::epaint::ClippedShape], text: &str) -> V
         }
     }
     centers
+}
+
+#[allow(deprecated)]
+#[test]
+fn test_log_limit_and_truncation_gui() {
+    use std::sync::mpsc::channel;
+    use udp_packet_studio::UdpStudioState;
+    use udp_packet_studio::locales::LanguageSetting;
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, LogEntry, LogDirection};
+    use udp_packet_studio::udp_worker::UdpWorker;
+
+    let ctx = egui::Context::default();
+    let (tx_event, rx_event) = channel();
+    let worker = UdpWorker::spawn(tx_event, ctx.clone());
+    let (tx_logger, _rx_logger) = channel::<LoggerCommand>();
+
+    let mut state = UdpStudioState {
+        collections: Vec::new(),
+        selected_request_id: None,
+        composer_selected_collection_idx: 0,
+        composer_ip: "127.0.0.1".to_string(),
+        composer_port: "9000".to_string(),
+        composer_ip_history: Vec::new(),
+        composer_port_history: Vec::new(),
+        composer_payload_type: PayloadType::Text,
+        composer_payload: String::new(),
+        composer_name: String::new(),
+        logs: Vec::new(),
+        selected_log_idx: None,
+        filter_text: String::new(),
+        auto_scroll: true,
+        log_export_format: LogExportFormat::Csv,
+        filtered_indices: Vec::new(),
+        sockets: Vec::new(),
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
+        listener_ip_history: Vec::new(),
+        listener_port_history: Vec::new(),
+        udp_worker: worker,
+        rx_event,
+        el_tid: "0001".to_string(),
+        el_seoj: "05FF01".to_string(),
+        el_deoj_preset: 0,
+        el_deoj_custom: "0EF001".to_string(),
+        el_deoj_eoj: String::new(),
+        el_esv_preset: 0,
+        el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+        el_show_helper: false,
+        multicast_input_addr: "224.0.23.0".to_string(),
+        multicast_input_interface: "0.0.0.0".to_string(),
+        inspector_protocol: InspectorProtocol::Raw,
+        auto_save_enabled: false,
+        auto_save_dir: String::new(),
+        auto_save_format: LogExportFormat::Csv,
+        settings_open: false,
+        settings_reset_confirm_open: false,
+        about_open: false,
+        about_tab: AboutTab::Info,
+        tx_logger,
+        language_setting: LanguageSetting::English,
+        mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128, // display limit
+        max_log_lines: 10000,         // stored limit
+    };
+
+    // 1. Add 10,005 items, each with 1KB data.
+    let data_1kb = vec![0xAA; 1024]; // 1KB data
+    for _ in 0..10005 {
+        let entry = LogEntry::new(
+            chrono::Local::now(),
+            LogDirection::Received,
+            std::net::SocketAddr::from(([127, 0, 0, 1], 9000)),
+            data_1kb.clone(),
+        );
+        state.push_log(entry);
+    }
+
+    // Verify logs count is capped at 10,000
+    assert_eq!(state.logs.len(), 10000);
+
+    // Verify each log contains exactly 1024 bytes (1KB)
+    for entry in &state.logs {
+        assert_eq!(entry.data.len(), 1024);
+    }
+
+    // Check dynamic preview generation in data model
+    let expected_preview_start = vec!["AA"; 128].join(" ");
+    let expected_full_preview = format!("{}...", expected_preview_start);
+    assert_eq!(state.logs[0].get_preview(state.max_display_data_bytes), expected_full_preview);
+
+    // 2. Render the log viewer GUI.
+    let mut raw_input = egui::RawInput::default();
+    raw_input.screen_rect = Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0)));
+    let full_output = ctx.run_ui(raw_input, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_log_viewer(ui);
+        });
+    });
+
+    // Verify that the truncated preview text is rendered in the GUI
+    // Search for a prefix to avoid galley wrapped layout mismatches
+    let partial_expected_preview = vec!["AA"; 20].join(" ");
+    let rendered_previews = find_all_text_centers(&full_output.shapes, &partial_expected_preview);
+    assert!(!rendered_previews.is_empty(), "Expected to find some previews rendered in the log table");
+
+    // 3. Verify Inspector displays full data (no truncation)
+    // Select the first log item
+    state.selected_log_idx = Some(0);
+    state.inspector_protocol = InspectorProtocol::Raw;
+
+    let mut raw_input2 = egui::RawInput::default();
+    raw_input2.screen_rect = Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0)));
+    let inspector_output = ctx.run_ui(raw_input2, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_inspector(ui);
+        });
+    });
+
+    // The inspector raw protocol hex dump for 1024 bytes has 64 rows of 16 bytes.
+    // e.g. "0000: AA AA AA AA AA AA AA AA AA AA AA AA AA AA AA AA"
+    // Let's check that the line prefix "03F0:" (for byte offset 1008 = 0x03F0) is rendered,
+    // which proves that the full dump (up to 1024 bytes) is rendered.
+    let found_last_offset = find_text_center(&inspector_output.shapes, "03f0:");
+    assert!(found_last_offset.is_some(), "Expected inspector to display the full 1024 bytes (found 03f0: offset)");
 }
 
 

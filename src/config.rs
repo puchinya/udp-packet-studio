@@ -98,6 +98,14 @@ impl SavedCollections {
     }
 }
 
+fn default_max_display_data_bytes() -> usize {
+    128
+}
+
+fn default_max_log_lines() -> usize {
+    10000
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedConfig {
     #[serde(skip)]
@@ -128,6 +136,10 @@ pub struct SavedConfig {
     pub auto_save_format: LogExportFormat,
     #[serde(default = "default_language_setting")]
     pub language_setting: LanguageSetting,
+    #[serde(default = "default_max_display_data_bytes")]
+    pub max_display_data_bytes: usize,
+    #[serde(default = "default_max_log_lines")]
+    pub max_log_lines: usize,
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
@@ -159,6 +171,8 @@ impl Default for SavedConfig {
             auto_save_dir: default_auto_save_dir(),
             auto_save_format: LogExportFormat::Csv,
             language_setting: LanguageSetting::System,
+            max_display_data_bytes: 128,
+            max_log_lines: 10000,
         }
     }
 }

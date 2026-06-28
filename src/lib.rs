@@ -89,6 +89,8 @@ pub struct UdpStudioState {
     pub auto_save_enabled: bool,
     pub auto_save_dir: String,
     pub auto_save_format: LogExportFormat,
+    pub max_display_data_bytes: usize,
+    pub max_log_lines: usize,
     pub settings_open: bool,
     pub settings_reset_confirm_open: bool,
     pub about_open: bool,
@@ -134,6 +136,9 @@ impl UdpStudioState {
         self.auto_save_dir = def.auto_save_dir;
         self.auto_save_format = def.auto_save_format;
         self.language_setting = def.language_setting;
+        self.max_display_data_bytes = def.max_display_data_bytes;
+        self.max_log_lines = def.max_log_lines;
+        self.enforce_log_limits();
         self.save_config();
         self.update_logger_config();
     }
@@ -210,6 +215,8 @@ impl UdpStudioState {
                 auto_save_dir: self.auto_save_dir.clone(),
                 auto_save_format: self.auto_save_format,
                 language_setting: self.language_setting,
+                max_display_data_bytes: self.max_display_data_bytes,
+                max_log_lines: self.max_log_lines,
             };
             config.save();
         }
@@ -229,8 +236,24 @@ impl UdpStudioState {
         });
     }
 
-    pub(crate) fn push_log(&mut self, entry: LogEntry) {
+    pub fn enforce_log_limits(&mut self) {
+        let max_lines = self.max_log_lines;
+        if self.logs.len() > max_lines {
+            let remove_count = self.logs.len() - max_lines;
+            self.logs.drain(0..remove_count);
+            if let Some(idx) = self.selected_log_idx {
+                if idx < remove_count {
+                    self.selected_log_idx = None;
+                } else {
+                    self.selected_log_idx = Some(idx - remove_count);
+                }
+            }
+        }
+    }
+
+    pub fn push_log(&mut self, entry: LogEntry) {
         self.logs.push(entry.clone());
+        self.enforce_log_limits();
         let _ = self.tx_logger.send(LoggerCommand::Log(entry));
         self.update_filtered_indices();
     }
@@ -798,6 +821,8 @@ impl MainApp {
             auto_save_enabled: config.auto_save_enabled,
             auto_save_dir: config.auto_save_dir,
             auto_save_format: config.auto_save_format,
+            max_display_data_bytes: config.max_display_data_bytes,
+            max_log_lines: config.max_log_lines,
             settings_open: false,
             settings_reset_confirm_open: false,
             about_open: false,
@@ -1340,6 +1365,10 @@ impl eframe::App for MainApp {
             let browse_btn_label = self.state.tr("settings-browse");
             let close_btn_label = self.state.tr("settings-close");
             let reset_btn_label = self.state.tr("settings-reset");
+            
+            let log_limit_section = self.state.tr("settings-log-limit-section");
+            let max_display_bytes_label = self.state.tr("settings-max-display-bytes");
+            let max_log_lines_label = self.state.tr("settings-max-log-lines");
 
             egui::Window::new(settings_title)
                 .open(&mut open)
@@ -1423,6 +1452,33 @@ impl eframe::App for MainApp {
                                     self.state.save_config();
                                     self.state.update_logger_config();
                                 }
+                            }
+                        });
+                        
+                        ui.add_space(12.0);
+                        ui.separator();
+                        ui.add_space(12.0);
+
+                        // Log Limits Settings
+                        ui.heading(log_limit_section);
+                        ui.add_space(4.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(max_display_bytes_label);
+                            let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_display_data_bytes).range(1..=65536));
+                            if drag_res.changed() {
+                                self.state.save_config();
+                            }
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(max_log_lines_label);
+                            let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_log_lines).range(1..=1000000));
+                            if drag_res.changed() {
+                                self.state.enforce_log_limits();
+                                self.state.save_config();
                             }
                         });
                         
