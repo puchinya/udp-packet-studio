@@ -348,7 +348,6 @@ impl UdpStudioState {
 pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_addr_str: &str) -> std::io::Result<()> {
     use std::fs::File;
     use std::io::Write;
-    use std::net::SocketAddr;
 
     let mut file = File::create(path)?;
 
@@ -371,29 +370,16 @@ pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_add
             continue;
         }
 
-        let entry_local_ip = entry.local_ip.as_deref()
-            .and_then(|ip| ip.parse::<std::net::IpAddr>().ok())
-            .unwrap_or(local_ip_parsed);
-        let entry_local_port = entry.local_port.as_deref()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(local_port);
+        let src_ip = entry.src_ip.parse::<std::net::IpAddr>().unwrap_or(local_ip_parsed);
+        let dest_ip = entry.dest_ip.parse::<std::net::IpAddr>().unwrap_or(local_ip_parsed);
+        let src_port = entry.src_port.parse::<u16>().unwrap_or(local_port);
+        let dest_port = entry.dest_port.parse::<u16>().unwrap_or(local_port);
 
-        let src_addr = match entry.direction {
-            LogDirection::Received => entry.address,
-            LogDirection::Sent => SocketAddr::new(entry_local_ip, entry_local_port),
-            _ => continue,
-        };
-        let dest_addr = match entry.direction {
-            LogDirection::Received => SocketAddr::new(entry_local_ip, entry_local_port),
-            LogDirection::Sent => entry.address,
-            _ => continue,
-        };
-
-        let src_ip = match src_addr.ip() {
+        let src_ip_v4 = match src_ip {
             std::net::IpAddr::V4(ip) => ip,
             _ => std::net::Ipv4Addr::new(127, 0, 0, 1),
         };
-        let dest_ip = match dest_addr.ip() {
+        let dest_ip_v4 = match dest_ip {
             std::net::IpAddr::V4(ip) => ip,
             _ => std::net::Ipv4Addr::new(127, 0, 0, 1),
         };
@@ -421,8 +407,8 @@ pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_add
         let checksum_offset = packet_data.len();
         packet_data.extend_from_slice(&[0u8; 2]);
 
-        packet_data.extend_from_slice(&src_ip.octets());
-        packet_data.extend_from_slice(&dest_ip.octets());
+        packet_data.extend_from_slice(&src_ip_v4.octets());
+        packet_data.extend_from_slice(&dest_ip_v4.octets());
 
         // Checksum
         let mut sum = 0u32;
@@ -438,8 +424,8 @@ pub fn write_pcap_helper(path: &std::path::Path, logs: &[LogEntry], listener_add
         packet_data[checksum_offset + 1] = (checksum & 0xff) as u8;
 
         // 3. UDP Header (8 bytes)
-        packet_data.extend_from_slice(&src_addr.port().to_be_bytes());
-        packet_data.extend_from_slice(&dest_addr.port().to_be_bytes());
+        packet_data.extend_from_slice(&src_port.to_be_bytes());
+        packet_data.extend_from_slice(&dest_port.to_be_bytes());
         let udp_len = (8 + payload_len) as u16;
         packet_data.extend_from_slice(&udp_len.to_be_bytes());
         packet_data.extend_from_slice(&0x0000u16.to_be_bytes());
