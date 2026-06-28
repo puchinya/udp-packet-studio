@@ -1431,7 +1431,7 @@ impl eframe::App for MainApp {
 
                 // Resizing separator styling
                 dock_style.separator.width = 1.0;
-                dock_style.separator.extra_interact_width = 4.0;
+                dock_style.separator.extra_interact_width = 8.0;
                 
                 DockArea::new(&mut self.dock_state)
                     .style(dock_style)
@@ -1859,8 +1859,8 @@ pub fn show_resize_handles(ui: &mut egui::Ui) {
     use egui::{Sense, Rect, pos2, CursorIcon, ViewportCommand};
 
     let rect = ui.ctx().viewport_rect();
-    let border = 6.0;
-    let corner = 12.0;
+    let border = 10.0;
+    let corner = 20.0;
 
     struct ResizeZone {
         rect: Rect,
