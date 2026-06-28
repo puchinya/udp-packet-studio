@@ -283,85 +283,89 @@ impl UdpStudioState {
                 let props_len = self.el_properties.len();
 
                 for (i, prop) in self.el_properties.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(format!("#{}", i + 1));
 
-                        // Always display the hex text field
-                        ui.label("EPC:");
-                        ui.add(egui::TextEdit::singleline(&mut prop.epc).desired_width(30.0));
+                        // EPC Group
+                        ui.horizontal(|ui| {
+                            ui.label("EPC:");
+                            ui.add(egui::TextEdit::singleline(&mut prop.epc).desired_width(30.0));
 
-                        // EPC dropdown (if MRA class properties are available)
-                        if !epc_list.is_empty() {
-                            let current_epc_label = epc_list.iter()
-                                .find(|(e, _)| *e == prop.epc.to_uppercase())
-                                .map(|(_, l)| l.clone())
-                                .unwrap_or_else(|| format!("Custom (0x{})", prop.epc));
-                            egui::ComboBox::from_id_salt(format!("epc_combo_{}", i))
-                                .selected_text(current_epc_label)
-                                .width(180.0)
-                                .show_ui(ui, |ui| {
-                                    for (epc_str, label) in &epc_list {
-                                        let is_selected = prop.epc.to_uppercase() == *epc_str;
-                                        if ui.selectable_label(is_selected, label).clicked() {
-                                            prop.epc = epc_str.clone();
-                                        }
-                                    }
-                                });
-                        }
-
-                        // EDT field (hidden for GET)
-                        if !is_get {
-                            ui.label("EDT:");
-                            ui.add(egui::TextEdit::singleline(&mut prop.edt)
-                                .desired_width(50.0)
-                                .hint_text("hex"));
-
-                            // Resolve EDT candidates from MRA property info
-                            let edt_candidates = {
-                                let current_deoj = self.el_deoj_custom.trim().to_uppercase();
-                                let class_key = if current_deoj.len() >= 4 {
-                                    let g = u8::from_str_radix(&current_deoj[0..2], 16).ok();
-                                    let c = u8::from_str_radix(&current_deoj[2..4], 16).ok();
-                                    g.zip(c)
-                                } else {
-                                    None
-                                };
-
-                                let epc_val = u8::from_str_radix(prop.epc.trim_start_matches("0x"), 16).ok();
-                                
-                                if let (Some((g, c)), Some(epc)) = (class_key, epc_val) {
-                                    self.mra_db.classes.get(&(g, c))
-                                        .and_then(|info| info.properties.get(&epc))
-                                        .map(|prop_info| prop_info.edt_candidates.clone())
-                                        .unwrap_or_default()
-                                } else {
-                                    Vec::new()
-                                }
-                            };
-
-                            if !edt_candidates.is_empty() {
-                                let current_edt_label = edt_candidates.iter()
-                                    .find(|(val, _, _)| val.to_uppercase() == prop.edt.trim().to_uppercase())
-                                    .map(|(val, name_ja, name_en)| {
-                                        let name = if use_ja { name_ja } else { name_en };
-                                        format!("0x{} – {}", val, name)
-                                    })
-                                    .unwrap_or_else(|| format!("Custom (0x{})", prop.edt));
-
-                                egui::ComboBox::from_id_salt(format!("edt_combo_{}", i))
-                                    .selected_text(current_edt_label)
+                            // EPC dropdown (if MRA class properties are available)
+                            if !epc_list.is_empty() {
+                                let current_epc_label = epc_list.iter()
+                                    .find(|(e, _)| *e == prop.epc.to_uppercase())
+                                    .map(|(_, l)| l.clone())
+                                    .unwrap_or_else(|| format!("Custom (0x{})", prop.epc));
+                                egui::ComboBox::from_id_salt(format!("epc_combo_{}", i))
+                                    .selected_text(current_epc_label)
                                     .width(180.0)
                                     .show_ui(ui, |ui| {
-                                        for (val, name_ja, name_en) in &edt_candidates {
-                                            let name = if use_ja { name_ja } else { name_en };
-                                            let label = format!("0x{} – {}", val, name);
-                                            let is_selected = prop.edt.trim().to_uppercase() == val.to_uppercase();
+                                        for (epc_str, label) in &epc_list {
+                                            let is_selected = prop.epc.to_uppercase() == *epc_str;
                                             if ui.selectable_label(is_selected, label).clicked() {
-                                                prop.edt = val.clone();
+                                                prop.epc = epc_str.clone();
                                             }
                                         }
                                     });
                             }
+                        });
+
+                        // EDT Group (hidden for GET)
+                        if !is_get {
+                            ui.horizontal(|ui| {
+                                ui.label("EDT:");
+                                ui.add(egui::TextEdit::singleline(&mut prop.edt)
+                                    .desired_width(50.0)
+                                    .hint_text("hex"));
+
+                                // Resolve EDT candidates from MRA property info
+                                let edt_candidates = {
+                                    let current_deoj = self.el_deoj_custom.trim().to_uppercase();
+                                    let class_key = if current_deoj.len() >= 4 {
+                                        let g = u8::from_str_radix(&current_deoj[0..2], 16).ok();
+                                        let c = u8::from_str_radix(&current_deoj[2..4], 16).ok();
+                                        g.zip(c)
+                                    } else {
+                                        None
+                                    };
+
+                                    let epc_val = u8::from_str_radix(prop.epc.trim_start_matches("0x"), 16).ok();
+                                    
+                                    if let (Some((g, c)), Some(epc)) = (class_key, epc_val) {
+                                        self.mra_db.classes.get(&(g, c))
+                                            .and_then(|info| info.properties.get(&epc))
+                                            .map(|prop_info| prop_info.edt_candidates.clone())
+                                            .unwrap_or_default()
+                                    } else {
+                                        Vec::new()
+                                    }
+                                };
+
+                                if !edt_candidates.is_empty() {
+                                    let current_edt_label = edt_candidates.iter()
+                                        .find(|(val, _, _)| val.to_uppercase() == prop.edt.trim().to_uppercase())
+                                        .map(|(val, name_ja, name_en)| {
+                                            let name = if use_ja { name_ja } else { name_en };
+                                            format!("0x{} – {}", val, name)
+                                        })
+                                        .unwrap_or_else(|| format!("Custom (0x{})", prop.edt));
+
+                                    egui::ComboBox::from_id_salt(format!("edt_combo_{}", i))
+                                        .selected_text(current_edt_label)
+                                        .width(180.0)
+                                        .show_ui(ui, |ui| {
+                                            for (val, name_ja, name_en) in &edt_candidates {
+                                                let name = if use_ja { name_ja } else { name_en };
+                                                let label = format!("0x{} – {}", val, name);
+                                                let is_selected = prop.edt.trim().to_uppercase() == val.to_uppercase();
+                                                if ui.selectable_label(is_selected, label).clicked() {
+                                                    prop.edt = val.clone();
+                                                }
+                                            }
+                                        });
+                                }
+                            });
                         }
 
                         // Remove button (only if more than 1 row)
@@ -369,6 +373,7 @@ impl UdpStudioState {
                             remove_idx = Some(i);
                         }
                     });
+                    ui.add_space(4.0);
                 }
 
                 if let Some(idx) = remove_idx {
