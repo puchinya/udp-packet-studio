@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::mpsc::channel;
 use chrono::Local;
 use udp_packet_studio::UdpStudioState;
-use udp_packet_studio::types::{LogEntry, LogDirection, PayloadType, LogExportFormat, InspectorProtocol, AboutTab, validate_payload};
+use udp_packet_studio::types::{LogEntry, LogDirection, PayloadType, LogExportFormat, InspectorProtocol, AboutTab, AppTheme, validate_payload};
 use udp_packet_studio::udp_worker::UdpWorker;
 use udp_packet_studio::views::collections::{YamlCollection, YamlRequest};
 use udp_packet_studio::views::log_viewer::write_pcap_helper;
@@ -12,6 +12,7 @@ fn make_test_state() -> UdpStudioState {
     let worker = UdpWorker::spawn(tx, egui::Context::default());
     let (tx_logger, _) = channel();
     UdpStudioState {
+        theme: AppTheme::System,
         collections: Vec::new(),
         selected_request_id: None,
         composer_selected_collection_idx: 0,
@@ -324,6 +325,87 @@ fn test_mra_candidates_loading() {
     assert!(!prop_80.edt_candidates.is_empty(), "0x80 edt_candidates should not be empty");
     let has_on = prop_80.edt_candidates.iter().any(|(val, name_ja, _)| val == "30" && name_ja == "ON");
     assert!(has_on, "Candidate '30' (ON) not found in 0x80");
+}
+
+#[test]
+fn test_udp_worker_unreachable_port_continuation() {
+    use std::time::Duration;
+    use std::net::UdpSocket;
+    use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
+
+    let (tx_event, rx_event) = channel();
+    let ctx = egui::Context::default();
+    let worker = UdpWorker::spawn(tx_event, ctx);
+
+    // Bind a socket (let's bind to localhost with dynamic port)
+    let socket_id = "test_socket".to_string();
+    worker.send(UdpCommand::Bind {
+        id: socket_id.clone(),
+        addr: "127.0.0.1:0".to_string(),
+    });
+
+    // Wait for the bound event and get the local address
+    let mut bound_addr = None;
+    for _ in 0..50 {
+        if let Ok(event) = rx_event.recv_timeout(Duration::from_millis(10)) {
+            if let UdpEvent::Bound { id, addr } = event {
+                if id == socket_id {
+                    bound_addr = Some(addr);
+                    break;
+                }
+            }
+        }
+    }
+    let bound_addr = bound_addr.expect("Failed to bind socket");
+
+    // Now, send a packet to an unreachable port (e.g. 127.0.0.1:1 - port 1 is reserved and almost certainly closed/unreachable)
+    worker.send(UdpCommand::Send {
+        id: socket_id.clone(),
+        target: "127.0.0.1:1".to_string(),
+        data: b"unreachable test".to_vec(),
+    });
+
+    // Wait for a short duration to let error occur (if any, e.g. WSAECONNRESET on Windows)
+    std::thread::sleep(Duration::from_millis(100));
+
+    // Drain and look for UdpEvent::Sent and potential UdpEvent::Error
+    let mut got_sent = false;
+    let mut _got_error = false;
+    while let Ok(event) = rx_event.try_recv() {
+        match event {
+            UdpEvent::Sent { id, .. } if id == socket_id => {
+                got_sent = true;
+            }
+            UdpEvent::Error { id, err } if id == socket_id => {
+                println!("Note: Got expected/potential socket error: {}", err);
+                _got_error = true;
+            }
+            _ => {}
+        }
+    }
+    assert!(got_sent, "Packet should have been sent");
+
+    // Even if an error occurred (or did not occur on some OSes), the socket thread should still be alive.
+    // Let's verify by sending a valid packet from an external socket to our bound socket.
+    let external_socket = UdpSocket::bind("127.0.0.1:0").expect("Failed to bind external socket");
+    let test_payload = b"still alive!".to_vec();
+    external_socket.send_to(&test_payload, bound_addr).expect("Failed to send from external socket");
+
+    // Wait for the received event
+    let mut got_received = false;
+    for _ in 0..100 {
+        if let Ok(event) = rx_event.recv_timeout(Duration::from_millis(10)) {
+            if let UdpEvent::Received { id, data, .. } = event {
+                if id == socket_id {
+                    assert_eq!(data, test_payload);
+                    got_received = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    assert!(got_received, "Socket should still be receiving packets after an unreachable target send");
 }
 
 

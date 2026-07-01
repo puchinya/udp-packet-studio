@@ -107,12 +107,25 @@ impl UdpWorker {
                                                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
                                                             // Just timeout, continue and check stop flag
                                                         }
+                                                        Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {
+                                                            // Interrupted system call, continue and retry
+                                                        }
+                                                        Err(ref e) if e.kind() == std::io::ErrorKind::ConnectionRefused || e.kind() == std::io::ErrorKind::ConnectionReset => {
+                                                            // Port unreachable or connection reset error from previous sends.
+                                                            // Send the error event to notify the UI, but do NOT break the loop.
+                                                            if !flag_receiver.load(Ordering::SeqCst) {
+                                                                event_sender.send(UdpEvent::Error {
+                                                                    id: id_recv.clone(),
+                                                                    err: format!("Receive error: {}", e),
+                                                                });
+                                                            }
+                                                        }
                                                         Err(e) => {
                                                             // Only send error if we are not shutting down
                                                             if !flag_receiver.load(Ordering::SeqCst) {
                                                                 event_sender.send(UdpEvent::Error {
                                                                     id: id_recv.clone(),
-                                                                    err: format!("Receive error: {}", e),
+                                                                    err: format!("Fatal receive error: {}", e),
                                                                 });
                                                             }
                                                             break;
