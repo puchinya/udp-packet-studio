@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::mpsc::channel;
 use chrono::Local;
 use udp_packet_studio::UdpStudioState;
-use udp_packet_studio::types::{LogEntry, LogDirection, PayloadType, LogExportFormat, InspectorProtocol, AboutTab, AppTheme, validate_payload};
+use udp_packet_studio::types::{LogEntry, LogDirection, PayloadType, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab, AppTheme, validate_payload};
 use udp_packet_studio::udp_worker::UdpWorker;
 use udp_packet_studio::views::collections::{YamlCollection, YamlRequest};
 use udp_packet_studio::views::log_viewer::write_pcap_helper;
@@ -66,6 +66,7 @@ fn make_test_state() -> UdpStudioState {
         auto_save_format: LogExportFormat::Csv,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,

@@ -31,6 +31,10 @@ statusbar-auto-save-disabled = 💾 Auto-Save: Disabled
 
 # Settings Dialog
 settings-title = ⚙ Preferences
+settings-tab-general = General
+settings-tab-log-display = Log Display
+settings-tab-log-saving = Log Saving
+settings-tab-others = Others
 settings-lang-section = Language Settings
 settings-lang-label = Language:
 settings-lang-system = System Setting

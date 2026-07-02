@@ -18,7 +18,7 @@ use egui_dock::{DockArea, DockState};
 use egui_dock::tab_viewer::OnCloseResponse;
 
 use udp_worker::{UdpWorker, UdpCommand, UdpEvent};
-use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand, AboutTab, ElBuilderProperty, AppTheme};
+use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand, AboutTab, SettingsTab, ElBuilderProperty, AppTheme};
 use config::SavedConfig;
 use styling::{setup_custom_styles, apply_theme};
 use locales::LanguageSetting;
@@ -96,6 +96,7 @@ pub struct UdpStudioState {
     pub max_log_lines: usize,
     pub settings_open: bool,
     pub settings_reset_confirm_open: bool,
+    pub settings_tab: SettingsTab,
     pub about_open: bool,
     pub about_tab: AboutTab,
     pub tx_logger: Sender<LoggerCommand>,
@@ -901,6 +902,7 @@ impl MainApp {
             max_log_lines: config.max_log_lines,
             settings_open: false,
             settings_reset_confirm_open: false,
+            settings_tab: SettingsTab::General,
             about_open: false,
             about_tab: AboutTab::Info,
             tx_logger,
@@ -1515,6 +1517,11 @@ impl eframe::App for MainApp {
             let log_limit_section = self.state.tr("settings-log-limit-section");
             let max_display_bytes_label = self.state.tr("settings-max-display-bytes");
             let max_log_lines_label = self.state.tr("settings-max-log-lines");
+            
+            let tab_general = self.state.tr("settings-tab-general");
+            let tab_log_display = self.state.tr("settings-tab-log-display");
+            let tab_log_saving = self.state.tr("settings-tab-log-saving");
+            let tab_others = self.state.tr("settings-tab-others");
 
             egui::Window::new(settings_title)
                 .open(&mut open)
@@ -1522,144 +1529,164 @@ impl eframe::App for MainApp {
                 .collapsible(false)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
+                    ui.set_min_width(420.0);
                     ui.vertical(|ui| {
-                        // Language Settings
-                        ui.heading(lang_section);
-                        ui.add_space(4.0);
-                        
+                        // Tab Selector
                         ui.horizontal(|ui| {
-                            ui.label(lang_label);
-                            
-                            let combo_lang_res = egui::ComboBox::from_id_salt("settings_language")
-                                .selected_text(selected_lang_text)
-                                .show_ui(ui, |ui| {
-                                    let mut changed = false;
-                                    changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::System, system_display).changed();
-                                    changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::Japanese, ja_display).changed();
-                                    changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::English, en_display).changed();
-                                    changed
-                                });
-                            if combo_lang_res.inner.unwrap_or(false) {
-                                self.state.save_config();
-                            }
+                            ui.selectable_value(&mut self.state.settings_tab, SettingsTab::General, tab_general);
+                            ui.selectable_value(&mut self.state.settings_tab, SettingsTab::LogDisplay, tab_log_display);
+                            ui.selectable_value(&mut self.state.settings_tab, SettingsTab::LogSaving, tab_log_saving);
+                            ui.selectable_value(&mut self.state.settings_tab, SettingsTab::Others, tab_others);
                         });
-                        
                         ui.add_space(8.0);
-                        
-                        // Theme Settings
-                        ui.heading(theme_section);
-                        ui.add_space(4.0);
-                        
-                        ui.horizontal(|ui| {
-                            ui.label(theme_label);
-                            
-                            let combo_theme_res = egui::ComboBox::from_id_salt("settings_theme")
-                                .selected_text(selected_theme_text)
-                                .show_ui(ui, |ui| {
-                                    let mut changed = false;
-                                    changed |= ui.selectable_value(&mut self.state.theme, AppTheme::System, theme_system_display).changed();
-                                    changed |= ui.selectable_value(&mut self.state.theme, AppTheme::Light, theme_light_display).changed();
-                                    changed |= ui.selectable_value(&mut self.state.theme, AppTheme::Dark, theme_dark_display).changed();
-                                    changed
-                                });
-                            if combo_theme_res.inner.unwrap_or(false) {
-                                self.state.save_config();
-                            }
-                        });
-                        
-                        ui.add_space(12.0);
                         ui.separator();
-                        ui.add_space(12.0);
+                        ui.add_space(8.0);
 
-                        // Log Auto-Save Settings
-                        ui.heading(auto_save_section);
-                        ui.add_space(4.0);
-                        
-                        let checkbox_res = ui.checkbox(&mut self.state.auto_save_enabled, auto_save_enable);
-                        if checkbox_res.changed() {
-                            self.state.save_config();
-                            self.state.update_logger_config();
-                        }
-                        
-                        ui.add_space(8.0);
-                        
-                        ui.label(auto_save_format_label);
-                        let combo_res = egui::ComboBox::from_id_salt("settings_auto_save_format")
-                            .selected_text(match self.state.auto_save_format {
-                                LogExportFormat::Csv => "CSV",
-                                LogExportFormat::Json => "JSON",
-                                LogExportFormat::Pcap => "PCAP",
-                            })
-                            .show_ui(ui, |ui| {
-                                let mut changed = false;
-                                changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Csv, "CSV").changed();
-                                changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Json, "JSON").changed();
-                                changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Pcap, "PCAP").changed();
-                                changed
-                            });
-                        if combo_res.inner.unwrap_or(false) {
-                            self.state.save_config();
-                            self.state.update_logger_config();
-                        }
-                        
-                        ui.add_space(8.0);
-                        
-                        ui.label(auto_save_dir_label);
-                        ui.horizontal(|ui| {
-                            let dir_res = ui.add(egui::TextEdit::singleline(&mut self.state.auto_save_dir).desired_width(300.0));
-                            if dir_res.changed() {
-                                self.state.save_config();
-                                self.state.update_logger_config();
+                        // Tab Content
+                        match self.state.settings_tab {
+                            SettingsTab::General => {
+                                // Language Settings
+                                ui.heading(lang_section);
+                                ui.add_space(4.0);
+                                
+                                ui.horizontal(|ui| {
+                                    ui.label(lang_label);
+                                    
+                                    let combo_lang_res = egui::ComboBox::from_id_salt("settings_language")
+                                        .selected_text(selected_lang_text)
+                                        .show_ui(ui, |ui| {
+                                            let mut changed = false;
+                                            changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::System, system_display).changed();
+                                            changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::Japanese, ja_display).changed();
+                                            changed |= ui.selectable_value(&mut self.state.language_setting, LanguageSetting::English, en_display).changed();
+                                            changed
+                                        });
+                                    if combo_lang_res.inner.unwrap_or(false) {
+                                        self.state.save_config();
+                                    }
+                                });
+                                
+                                ui.add_space(8.0);
+                                
+                                // Theme Settings
+                                ui.heading(theme_section);
+                                ui.add_space(4.0);
+                                
+                                ui.horizontal(|ui| {
+                                    ui.label(theme_label);
+                                    
+                                    let combo_theme_res = egui::ComboBox::from_id_salt("settings_theme")
+                                        .selected_text(selected_theme_text)
+                                        .show_ui(ui, |ui| {
+                                            let mut changed = false;
+                                            changed |= ui.selectable_value(&mut self.state.theme, AppTheme::System, theme_system_display).changed();
+                                            changed |= ui.selectable_value(&mut self.state.theme, AppTheme::Light, theme_light_display).changed();
+                                            changed |= ui.selectable_value(&mut self.state.theme, AppTheme::Dark, theme_dark_display).changed();
+                                            changed
+                                        });
+                                    if combo_theme_res.inner.unwrap_or(false) {
+                                        self.state.save_config();
+                                    }
+                                });
                             }
-                            
-                            if ui.button(browse_btn_label).clicked() {
-                                if let Some(path) = rfd::FileDialog::new()
-                                    .set_directory(&self.state.auto_save_dir)
-                                    .pick_folder()
-                                {
-                                    self.state.auto_save_dir = path.to_string_lossy().into_owned();
+                            SettingsTab::LogDisplay => {
+                                // Log Limits Settings
+                                ui.heading(log_limit_section);
+                                ui.add_space(4.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.label(max_display_bytes_label);
+                                    let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_display_data_bytes).range(1..=65536));
+                                    if drag_res.changed() {
+                                        self.state.save_config();
+                                    }
+                                });
+
+                                ui.add_space(8.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.label(max_log_lines_label);
+                                    let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_log_lines).range(1..=1000000));
+                                    if drag_res.changed() {
+                                        self.state.enforce_log_limits();
+                                        self.state.save_config();
+                                    }
+                                });
+                            }
+                            SettingsTab::LogSaving => {
+                                // Log Auto-Save Settings
+                                ui.heading(auto_save_section);
+                                ui.add_space(4.0);
+                                
+                                let checkbox_res = ui.checkbox(&mut self.state.auto_save_enabled, auto_save_enable);
+                                if checkbox_res.changed() {
                                     self.state.save_config();
                                     self.state.update_logger_config();
                                 }
+                                
+                                ui.add_space(8.0);
+                                
+                                ui.label(auto_save_format_label);
+                                let combo_res = egui::ComboBox::from_id_salt("settings_auto_save_format")
+                                    .selected_text(match self.state.auto_save_format {
+                                        LogExportFormat::Csv => "CSV",
+                                        LogExportFormat::Json => "JSON",
+                                        LogExportFormat::Pcap => "PCAP",
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        let mut changed = false;
+                                        changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Csv, "CSV").changed();
+                                        changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Json, "JSON").changed();
+                                        changed |= ui.selectable_value(&mut self.state.auto_save_format, LogExportFormat::Pcap, "PCAP").changed();
+                                        changed
+                                    });
+                                if combo_res.inner.unwrap_or(false) {
+                                    self.state.save_config();
+                                    self.state.update_logger_config();
+                                }
+                                
+                                ui.add_space(8.0);
+                                
+                                ui.label(auto_save_dir_label);
+                                ui.horizontal(|ui| {
+                                    let dir_res = ui.add(egui::TextEdit::singleline(&mut self.state.auto_save_dir).desired_width(300.0));
+                                    if dir_res.changed() {
+                                        self.state.save_config();
+                                        self.state.update_logger_config();
+                                    }
+                                    
+                                    if ui.button(browse_btn_label).clicked() {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .set_directory(&self.state.auto_save_dir)
+                                            .pick_folder()
+                                        {
+                                            self.state.auto_save_dir = path.to_string_lossy().into_owned();
+                                            self.state.save_config();
+                                            self.state.update_logger_config();
+                                        }
+                                    }
+                                });
                             }
-                        });
-                        
-                        ui.add_space(12.0);
-                        ui.separator();
-                        ui.add_space(12.0);
+                            SettingsTab::Others => {
+                                // Layout Settings (Reset Window Layout)
+                                ui.heading(self.state.tr("settings-layout-section"));
+                                ui.add_space(4.0);
+                                if ui.button(self.state.tr("settings-reset-layout-btn")).clicked() {
+                                    self.state.reset_layout_requested = true;
+                                }
+                                
+                                ui.add_space(12.0);
+                                ui.separator();
+                                ui.add_space(12.0);
 
-                        // Log Limits Settings
-                        ui.heading(log_limit_section);
-                        ui.add_space(4.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(max_display_bytes_label);
-                            let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_display_data_bytes).range(1..=65536));
-                            if drag_res.changed() {
-                                self.state.save_config();
+                                // Initialization (Reset Settings)
+                                ui.heading(self.state.tr("settings-reset-confirm-title"));
+                                ui.add_space(4.0);
+                                let reset_btn = ui.add(egui::Button::new(egui::RichText::new(reset_btn_label).color(egui::Color32::from_rgb(255, 100, 100))));
+                                if reset_btn.clicked() {
+                                    reset_clicked = true;
+                                }
                             }
-                        });
-
-                        ui.add_space(8.0);
-
-                        ui.horizontal(|ui| {
-                            ui.label(max_log_lines_label);
-                            let drag_res = ui.add(egui::DragValue::new(&mut self.state.max_log_lines).range(1..=1000000));
-                            if drag_res.changed() {
-                                self.state.enforce_log_limits();
-                                self.state.save_config();
-                            }
-                        });
-
-                        ui.add_space(12.0);
-                        ui.separator();
-                        ui.add_space(12.0);
-
-                        // Layout Settings
-                        ui.heading(self.state.tr("settings-layout-section"));
-                        ui.add_space(4.0);
-                        if ui.button(self.state.tr("settings-reset-layout-btn")).clicked() {
-                            self.state.reset_layout_requested = true;
                         }
                         
                         ui.add_space(16.0);
@@ -1669,11 +1696,6 @@ impl eframe::App for MainApp {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button(close_btn_label).clicked() {
                                 close_clicked = true;
-                            }
-                            
-                            let reset_btn = ui.add(egui::Button::new(egui::RichText::new(reset_btn_label).color(egui::Color32::from_rgb(255, 100, 100))));
-                            if reset_btn.clicked() {
-                                reset_clicked = true;
                             }
                         });
                     });

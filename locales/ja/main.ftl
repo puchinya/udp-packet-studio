@@ -31,6 +31,10 @@ statusbar-auto-save-disabled = 💾 自動保存: 無効
 
 # Settings Dialog
 settings-title = ⚙ 設定
+settings-tab-general = 一般
+settings-tab-log-display = ログ表示
+settings-tab-log-saving = ログ保存
+settings-tab-others = その他
 settings-lang-section = 言語設定
 settings-lang-label = 表示言語:
 settings-lang-system = システム設定
