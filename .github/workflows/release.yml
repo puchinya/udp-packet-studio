@@ -140,8 +140,7 @@ jobs:
             echo "RELEASE_BODY=Release for $TAG_NAME" >> $GITHUB_ENV
           else
             echo "Found milestone #$MILESTONE_NUMBER"
-            ISSUES_JSON=$(gh api repos/${{ github.repository }}/issues \
-              -F milestone=$MILESTONE_NUMBER -F state=closed)
+            ISSUES_JSON=$(gh api "repos/${{ github.repository }}/issues?milestone=$MILESTONE_NUMBER&state=closed")
             
             echo "## What's Changed in $TAG_NAME" > release_notes.md
             echo "" >> release_notes.md
