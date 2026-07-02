@@ -385,6 +385,14 @@ pub enum AboutTab {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SettingsTab {
+    General,
+    LogDisplay,
+    LogSaving,
+    Others,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AppTheme {
     System,
     Light,

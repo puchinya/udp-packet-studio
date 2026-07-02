@@ -99,7 +99,7 @@ fn test_gui_triggered_communication() {
     use std::sync::mpsc::channel;
     use udp_packet_studio::UdpStudioState;
     use udp_packet_studio::locales::LanguageSetting;
-    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab};
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab};
     use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
 
     let ctx = egui::Context::default();
@@ -178,6 +178,7 @@ fn test_gui_triggered_communication() {
         auto_save_format: LogExportFormat::Csv,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,
@@ -251,7 +252,7 @@ fn test_collections_gui_interactions() {
     use std::sync::mpsc::channel;
     use udp_packet_studio::UdpStudioState;
     use udp_packet_studio::locales::LanguageSetting;
-    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, Collection, PacketDefinition};
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab, Collection, PacketDefinition};
     use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
 
     let ctx = egui::Context::default();
@@ -348,6 +349,7 @@ fn test_collections_gui_interactions() {
         auto_save_format: LogExportFormat::Csv,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,
@@ -541,7 +543,7 @@ fn test_log_limit_and_truncation_gui() {
     use std::sync::mpsc::channel;
     use udp_packet_studio::UdpStudioState;
     use udp_packet_studio::locales::LanguageSetting;
-    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, LogEntry, LogDirection};
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab, LogEntry, LogDirection};
     use udp_packet_studio::udp_worker::UdpWorker;
 
     let ctx = egui::Context::default();
@@ -594,6 +596,7 @@ fn test_log_limit_and_truncation_gui() {
         auto_save_format: LogExportFormat::Csv,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,
