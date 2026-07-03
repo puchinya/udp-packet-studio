@@ -403,9 +403,11 @@ impl UdpStudioState {
                         ui.add_space(4.0);
                         let mut args = std::collections::HashMap::new();
                         args.insert(std::borrow::Cow::Borrowed("msg"), err_msg.clone().into());
-                        ui.colored_label(
-                            egui::Color32::from_rgb(255, 100, 100),
-                            tr_args("collections-edit-invalid-payload", &args)
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(tr_args("collections-edit-invalid-payload", &args))
+                                    .color(egui::Color32::from_rgb(255, 100, 100))
+                            ).wrap()
                         );
                     }
                     
@@ -524,7 +526,7 @@ impl UdpStudioState {
                     target_ip: "127.0.0.1".to_string(),
                     target_port: "9000".to_string(),
                     payload_type: PayloadType::Text,
-                    payload: "New Request Payload".to_string(),
+                    payload: "".to_string(),
                 });
                 col.is_expanded = true;
                 self.selected_request_id = Some(req_id);

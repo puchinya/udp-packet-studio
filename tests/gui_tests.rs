@@ -593,6 +593,61 @@ fn test_collections_gui_interactions() {
     // Assert: A new collection has been added to state
     assert_eq!(state.collections.len(), 2);
     assert_eq!(state.collections[1].name, "Collection 2");
+
+    // ----------------------------------------------------
+    // TEST 4: Add a Request to Collection (clicking "+" button)
+    // ----------------------------------------------------
+    let mut plus_pos = None;
+    for clipped in &full_output.shapes {
+        if let egui::epaint::Shape::Text(text_shape) = &clipped.shape {
+            if text_shape.galley.text() == "+" {
+                let rect = text_shape.galley.rect;
+                let world_pos = text_shape.pos;
+                plus_pos = Some(world_pos + rect.center().to_vec2());
+                break;
+            }
+        }
+    }
+    let plus_pos = plus_pos.expect("Expected '+' button to be rendered");
+
+    // Click "+" button to add a request
+    let mut raw_input_add = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0))),
+        ..Default::default()
+    };
+    raw_input_add.events.push(egui::Event::PointerMoved(plus_pos));
+    raw_input_add.events.push(egui::Event::PointerButton {
+        pos: plus_pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    let _ = ctx.run_ui(raw_input_add, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_collections(ui);
+        });
+    });
+
+    let mut raw_input_add_up = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0))),
+        ..Default::default()
+    };
+    raw_input_add_up.events.push(egui::Event::PointerButton {
+        pos: plus_pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    let _ = ctx.run_ui(raw_input_add_up, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_collections(ui);
+        });
+    });
+
+    // Assert: A new request has been added to state.collections[0] (which is the first collection)
+    assert_eq!(state.collections[0].requests.len(), 2);
+    // Assert: The new request has an empty payload
+    assert_eq!(state.collections[0].requests[1].payload, "");
 }
 
 fn find_all_text_centers(shapes: &[egui::epaint::ClippedShape], text: &str) -> Vec<egui::Pos2> {
