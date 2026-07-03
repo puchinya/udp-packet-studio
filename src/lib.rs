@@ -1941,6 +1941,12 @@ copies or substantial portions of the Software."
                                             ui.add_space(4.0);
                                             ui.small("Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)");
                                         });
+
+                                        ui.collapsing("ECHONET Lite Machine Readable Appendix (MRA) (Free Spec License)", |ui| {
+                                            ui.label("Licensed under ECHONET Specification License.");
+                                            ui.add_space(4.0);
+                                            ui.small("Copyright (c) ECHONET Consortium.\nSource: https://echonet.jp/spec_g/");
+                                        });
                                     });
 
                                 ui.add_space(12.0);

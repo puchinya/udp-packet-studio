@@ -28,6 +28,14 @@ This project includes third-party software components and assets. These componen
 
 ---
 
+## 4. ECHONET Lite Machine Readable Appendix (MRA)
+- **File:** `assets/mra/MRA_v1.4.0/` (contains device object definitions in JSON format)
+- **Source:** [ECHONET Consortium MRA](https://echonet.jp/spec_g/) / [GitHub echonet-mra](https://github.com/echonet/echonet-mra)
+- **License:** ECHONET Specification License (Free to use for developing ECHONET Lite compatible products, provided without warranty).
+- **Copyright:** Copyright (c) ECHONET Consortium.
+
+---
+
 ## SIL Open Font License (OFL) Version 1.1
 
 ### PREAMBLE
