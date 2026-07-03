@@ -14,6 +14,7 @@ impl UdpStudioState {
         crate::locales::init_translations();
         let lang_id = self.language_id();
         let use_ja = lang_id.starts_with("ja");
+        let mut record_proto = None;
         let mra_db = self.mra_db.clone();
         let tr = |key: &str| {
             egui_i18n::set_language(&lang_id);
@@ -59,9 +60,37 @@ impl UdpStudioState {
                         ui.label(tr("ins-label-decode-as"));
                         ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Raw, tr("ins-proto-raw"));
                         ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::TextAscii, tr("ins-proto-ascii"));
-                        ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::EchonetLite, tr("ins-proto-echonet"));
-                        ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Syslog, tr("ins-proto-syslog"));
-                        ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Snmp, tr("ins-proto-snmp"));
+                        
+                        let combo_label = match self.inspector_protocol {
+                            InspectorProtocol::EchonetLite => tr("ins-proto-echonet"),
+                            InspectorProtocol::Syslog => tr("ins-proto-syslog"),
+                            InspectorProtocol::Snmp => tr("ins-proto-snmp"),
+                            _ => tr("settings-tab-protocols"),
+                        };
+
+                        let mut selected_proto = self.inspector_protocol;
+                        let combo_res = egui::ComboBox::from_id_salt("inspector_custom_protocol_combo")
+                            .selected_text(combo_label)
+                            .show_ui(ui, |ui| {
+                                let mut changed = false;
+                                for &proto in &self.inspector_protocols_order {
+                                    let label = match proto {
+                                        InspectorProtocol::EchonetLite => tr("ins-proto-echonet"),
+                                        InspectorProtocol::Syslog => tr("ins-proto-syslog"),
+                                        InspectorProtocol::Snmp => tr("ins-proto-snmp"),
+                                        _ => "".to_string(),
+                                    };
+                                    if ui.selectable_value(&mut selected_proto, proto, label).clicked() {
+                                        changed = true;
+                                    }
+                                }
+                                changed
+                            });
+                        
+                        if combo_res.inner.unwrap_or(false) {
+                            self.inspector_protocol = selected_proto;
+                            record_proto = Some(selected_proto);
+                        }
                     });
                     
                     ui.add_space(8.0);
@@ -355,6 +384,10 @@ impl UdpStudioState {
                 });
             }
         });
+
+        if let Some(proto) = record_proto {
+            self.record_inspector_protocol_usage(proto);
+        }
     }
 }
 

@@ -443,7 +443,36 @@ impl UdpStudioState {
             );
         });
 
-        self.selected_log_idx = new_selection;
+        if self.selected_log_idx != new_selection {
+            self.selected_log_idx = new_selection;
+            if let Some(idx) = new_selection {
+                if idx < self.logs.len() {
+                    let entry = &self.logs[idx];
+                    let src_port = entry.src_port.as_str();
+                    let dest_port = entry.dest_port.as_str();
+                    
+                    let el_ports: Vec<&str> = self.protocol_config.echonet_lite_port.split(',').map(|s| s.trim()).collect();
+                    let syslog_ports: Vec<&str> = self.protocol_config.syslog_port.split(',').map(|s| s.trim()).collect();
+                    let snmp_agent_ports: Vec<&str> = self.protocol_config.snmp_agent_port.split(',').map(|s| s.trim()).collect();
+                    let snmp_trap_ports: Vec<&str> = self.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).collect();
+
+                    if el_ports.contains(&src_port) || el_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::EchonetLite;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::EchonetLite);
+                    } else if syslog_ports.contains(&src_port) || syslog_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Syslog;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Syslog);
+                    } else if snmp_agent_ports.contains(&src_port) || snmp_agent_ports.contains(&dest_port)
+                        || snmp_trap_ports.contains(&src_port) || snmp_trap_ports.contains(&dest_port)
+                    {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Snmp;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Snmp);
+                    } else {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Raw;
+                    }
+                }
+            }
+        }
     }
 }
 
