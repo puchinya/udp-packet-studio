@@ -108,6 +108,16 @@ pub struct UdpStudioState {
 }
 
 impl UdpStudioState {
+    pub fn is_dark_theme(&self, ctx: &egui::Context) -> bool {
+        match self.theme {
+            AppTheme::System => {
+                ctx.theme() == egui::Theme::Dark
+            }
+            AppTheme::Dark => true,
+            AppTheme::Light => false,
+        }
+    }
+
     pub fn get_selected_socket(&self) -> Option<&crate::types::ActiveSocketState> {
         self.sockets.iter().find(|s| s.id == self.selected_socket_id)
     }
@@ -1139,9 +1149,24 @@ impl eframe::App for MainApp {
             }
         }
 
+        let is_dark = self.state.is_dark_theme(ui.ctx());
+        let (bg_color, header_bg_color, _border_color) = if is_dark {
+            (
+                egui::Color32::from_rgb(13, 16, 21),
+                egui::Color32::from_rgb(9, 11, 14),
+                egui::Color32::from_rgb(33, 41, 54),
+            )
+        } else {
+            (
+                egui::Color32::from_rgb(245, 247, 250), // slate white background
+                egui::Color32::from_rgb(238, 241, 246), // secondary panel background
+                egui::Color32::from_rgb(209, 217, 227), // subtle border
+            )
+        };
+
         // Outer window container with rounded corners (enabled by transparent viewport option)
         egui::Frame::NONE
-            .fill(egui::Color32::from_rgb(13, 16, 21))
+            .fill(bg_color)
             .corner_radius(egui::CornerRadius::same(12))
             .show(ui, |ui| {
                 // Force the frame to expand to fill the entire window area
@@ -1153,7 +1178,7 @@ impl eframe::App for MainApp {
                 // Custom Title Bar Panel (Mac Style header with integrated socket listener setup)
                 egui::Panel::top("custom_title_bar")
                     .frame(egui::Frame::default()
-                        .fill(egui::Color32::from_rgb(9, 11, 14))
+                        .fill(header_bg_color)
                         .corner_radius(egui::CornerRadius {
                             nw: 12,
                             ne: 12,
@@ -1301,7 +1326,7 @@ impl eframe::App for MainApp {
                 // Bottom status bar panel
                 egui::Panel::bottom("bottom_status_bar")
                     .frame(egui::Frame::default()
-                        .fill(egui::Color32::from_rgb(9, 11, 14))
+                        .fill(header_bg_color)
                         .corner_radius(egui::CornerRadius {
                             nw: 0,
                             ne: 0,
@@ -1423,28 +1448,42 @@ impl eframe::App for MainApp {
                 let mut dock_style = egui_dock::Style::from_egui(ui.style());
                 
                 // Customize tab bar background and padding to fit title bar style
-                dock_style.tab_bar.bg_fill = egui::Color32::from_rgb(9, 11, 14);
+                if is_dark {
+                    dock_style.tab_bar.bg_fill = egui::Color32::from_rgb(9, 11, 14);
+                    dock_style.tab.active.bg_fill = egui::Color32::from_rgb(13, 16, 21);
+                    dock_style.tab.active.text_color = egui::Color32::from_rgb(255, 255, 255);
+                    dock_style.tab.active.outline_color = egui::Color32::from_rgb(33, 41, 54);
+                    
+                    dock_style.tab.inactive.bg_fill = egui::Color32::from_rgb(9, 11, 14);
+                    dock_style.tab.inactive.text_color = egui::Color32::from_rgb(130, 140, 155);
+                    dock_style.tab.inactive.outline_color = egui::Color32::from_rgb(9, 11, 14);
+                    
+                    dock_style.tab.hovered.bg_fill = egui::Color32::from_rgb(26, 33, 45);
+                    dock_style.tab.hovered.text_color = egui::Color32::from_rgb(255, 255, 255);
+                    dock_style.tab.hovered.outline_color = egui::Color32::from_rgb(33, 41, 54);
+                    
+                    dock_style.tab.focused.bg_fill = egui::Color32::from_rgb(13, 16, 21);
+                    dock_style.tab.focused.text_color = egui::Color32::from_rgb(255, 255, 255);
+                    dock_style.tab.focused.outline_color = egui::Color32::from_rgb(79, 110, 242);
+                } else {
+                    dock_style.tab_bar.bg_fill = egui::Color32::from_rgb(238, 241, 246);
+                    dock_style.tab.active.bg_fill = egui::Color32::from_rgb(245, 247, 250);
+                    dock_style.tab.active.text_color = egui::Color32::from_rgb(30, 41, 59);
+                    dock_style.tab.active.outline_color = egui::Color32::from_rgb(209, 217, 227);
+                    
+                    dock_style.tab.inactive.bg_fill = egui::Color32::from_rgb(238, 241, 246);
+                    dock_style.tab.inactive.text_color = egui::Color32::from_rgb(100, 110, 120);
+                    dock_style.tab.inactive.outline_color = egui::Color32::from_rgb(238, 241, 246);
+                    
+                    dock_style.tab.hovered.bg_fill = egui::Color32::from_rgb(226, 232, 240);
+                    dock_style.tab.hovered.text_color = egui::Color32::from_rgb(15, 23, 42);
+                    dock_style.tab.hovered.outline_color = egui::Color32::from_rgb(209, 217, 227);
+                    
+                    dock_style.tab.focused.bg_fill = egui::Color32::from_rgb(245, 247, 250);
+                    dock_style.tab.focused.text_color = egui::Color32::from_rgb(15, 23, 42);
+                    dock_style.tab.focused.outline_color = egui::Color32::from_rgb(79, 110, 242);
+                }
                 dock_style.tab_bar.height = 30.0;
-                
-                // Customize active tab style (matches panel background)
-                dock_style.tab.active.bg_fill = egui::Color32::from_rgb(13, 16, 21);
-                dock_style.tab.active.text_color = egui::Color32::from_rgb(255, 255, 255);
-                dock_style.tab.active.outline_color = egui::Color32::from_rgb(33, 41, 54);
-                
-                // Customize inactive tab style
-                dock_style.tab.inactive.bg_fill = egui::Color32::from_rgb(9, 11, 14);
-                dock_style.tab.inactive.text_color = egui::Color32::from_rgb(130, 140, 155);
-                dock_style.tab.inactive.outline_color = egui::Color32::from_rgb(9, 11, 14);
-                
-                // Customize hovered tab style
-                dock_style.tab.hovered.bg_fill = egui::Color32::from_rgb(26, 33, 45);
-                dock_style.tab.hovered.text_color = egui::Color32::from_rgb(255, 255, 255);
-                dock_style.tab.hovered.outline_color = egui::Color32::from_rgb(33, 41, 54);
-                
-                // Customize focused tab style
-                dock_style.tab.focused.bg_fill = egui::Color32::from_rgb(13, 16, 21);
-                dock_style.tab.focused.text_color = egui::Color32::from_rgb(255, 255, 255);
-                dock_style.tab.focused.outline_color = egui::Color32::from_rgb(79, 110, 242);
                 
                 dock_style.tab.active.corner_radius = egui::CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 };
                 dock_style.tab.inactive.corner_radius = egui::CornerRadius { nw: 6, ne: 6, sw: 0, se: 0 };

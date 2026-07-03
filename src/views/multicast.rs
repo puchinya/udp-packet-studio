@@ -48,13 +48,19 @@ impl UdpStudioState {
 
             // Listener Status Warning
             if !is_listening {
+                let is_dark = self.is_dark_theme(ui.ctx());
+                let (warn_bg, warn_fg) = if is_dark {
+                    (egui::Color32::from_rgb(45, 20, 20), egui::Color32::from_rgb(255, 120, 120))
+                } else {
+                    (egui::Color32::from_rgb(253, 237, 237), egui::Color32::from_rgb(95, 33, 32))
+                };
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(45, 20, 20))
+                    .fill(warn_bg)
                     .corner_radius(egui::CornerRadius::same(4))
                     .inner_margin(egui::Margin::same(10))
                     .show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.colored_label(egui::Color32::from_rgb(255, 120, 120), tr("mc-status-offline"));
+                            ui.colored_label(warn_fg, tr("mc-status-offline"));
                             ui.add(egui::Label::new(tr("mc-status-offline-tip")).wrap());
                         });
                     });
@@ -215,8 +221,14 @@ impl UdpStudioState {
                     .spacing([15.0, 8.0])
                     .show(ui, |ui| {
                         // Table Header
-                        ui.colored_label(egui::Color32::from_rgb(180, 190, 200), egui::RichText::new(tr("mc-hdr-multicast-addr")).strong());
-                        ui.colored_label(egui::Color32::from_rgb(180, 190, 200), egui::RichText::new(tr("mc-hdr-interface-addr")).strong());
+                        let is_dark = self.is_dark_theme(ui.ctx());
+                        let header_color = if is_dark {
+                            egui::Color32::from_rgb(180, 190, 200)
+                        } else {
+                            egui::Color32::from_rgb(70, 80, 90)
+                        };
+                        ui.colored_label(header_color, egui::RichText::new(tr("mc-hdr-multicast-addr")).strong());
+                        ui.colored_label(header_color, egui::RichText::new(tr("mc-hdr-interface-addr")).strong());
                         ui.label("");
                         ui.end_row();
 
