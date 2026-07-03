@@ -13,6 +13,33 @@ pub enum InspectorProtocol {
     Raw,
     TextAscii,
     EchonetLite,
+    Syslog,
+    Snmp,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SnmpValueType {
+    Integer,
+    OctetString,
+    ObjectId,
+    Null,
+    IpAddress,
+    Counter32,
+    Gauge32,
+    TimeTicks,
+}
+
+impl Default for SnmpValueType {
+    fn default() -> Self {
+        Self::Null
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SnmpVarBindState {
+    pub oid: String,
+    pub value_type: SnmpValueType,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
