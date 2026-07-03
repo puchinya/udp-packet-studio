@@ -335,12 +335,12 @@ fn test_write_pcap_helper() {
 fn test_validate_payload() {
     // Test text validation
     assert!(validate_payload("Hello", PayloadType::Text).is_ok());
-    assert!(validate_payload("", PayloadType::Text).is_err());
+    assert!(validate_payload("", PayloadType::Text).is_ok()); // empty is ok
 
     // Test hex validation
     assert!(validate_payload("12 34 ab CD", PayloadType::Hex).is_ok());
     assert!(validate_payload("12:34-ab,CD", PayloadType::Hex).is_ok());
-    assert!(validate_payload("", PayloadType::Hex).is_err()); // empty
+    assert!(validate_payload("", PayloadType::Hex).is_ok()); // empty is ok
     assert!(validate_payload("12 3", PayloadType::Hex).is_err()); // odd length
     assert!(validate_payload("12 3x", PayloadType::Hex).is_err()); // invalid char 'x'
 }

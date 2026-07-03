@@ -704,9 +704,11 @@ impl UdpStudioState {
                     ui.add_space(4.0);
                     let mut args = std::collections::HashMap::new();
                     args.insert(std::borrow::Cow::Borrowed("msg"), err_msg.clone().into());
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 100, 100),
-                        tr_args("composer-invalid-payload", &args)
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(tr_args("composer-invalid-payload", &args))
+                                .color(egui::Color32::from_rgb(255, 100, 100))
+                        ).wrap()
                     );
                 }
 

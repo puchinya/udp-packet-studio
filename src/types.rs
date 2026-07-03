@@ -304,11 +304,7 @@ pub fn parse_hex_to_bytes(hex_str: &str) -> Result<Vec<u8>, String> {
 pub fn validate_payload(payload: &str, payload_type: PayloadType) -> Result<Vec<u8>, String> {
     match payload_type {
         PayloadType::Text => {
-            if payload.is_empty() {
-                Err("Payload cannot be empty.".to_string())
-            } else {
-                Ok(payload.as_bytes().to_vec())
-            }
+            Ok(payload.as_bytes().to_vec())
         }
         PayloadType::Hex => {
             let has_invalid_chars = payload.chars().any(|c| {
@@ -323,11 +319,7 @@ pub fn validate_payload(payload: &str, payload_type: PayloadType) -> Result<Vec<
             }
             match parse_hex_to_bytes(payload) {
                 Ok(bytes) => {
-                    if bytes.is_empty() {
-                        Err("Payload cannot be empty.".to_string())
-                    } else {
-                        Ok(bytes)
-                    }
+                    Ok(bytes)
                 }
                 Err(e) => {
                     if e.contains("must have an even number") {
