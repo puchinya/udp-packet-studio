@@ -97,6 +97,19 @@ fn make_test_state() -> UdpStudioState {
         mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
         max_display_data_bytes: 128,
         max_log_lines: 10000,
+        protocol_config: udp_packet_studio::types::ProtocolConfig::default(),
+        settings_selected_proto_tab: 0,
+        inspector_protocols_order: vec![
+            udp_packet_studio::types::InspectorProtocol::EchonetLite,
+            udp_packet_studio::types::InspectorProtocol::Syslog,
+            udp_packet_studio::types::InspectorProtocol::Snmp,
+        ],
+        preset_ports_order: vec![
+            udp_packet_studio::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+        ],
     }
 }
 

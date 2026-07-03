@@ -566,32 +566,42 @@ impl UdpStudioState {
                             ui.menu_button("▾", |ui| {
                                 ui.set_min_width(150.0);
                                 ui.menu_button(tr("composer-port-preset-section"), |ui| {
-                                    if ui.button(tr("composer-port-preset-echonet")).clicked() {
-                                        port_chosen = Some("3610".to_string());
-                                        ui.close();
-                                    }
-                                    if ui.button(tr("composer-port-preset-syslog")).clicked() {
-                                        port_chosen = Some("514".to_string());
-                                        ui.close();
-                                    }
-                                    if ui.button(tr("composer-port-preset-snmp")).clicked() {
-                                        port_chosen = Some("161".to_string());
-                                        ui.close();
+                                    for item in &self.preset_ports_order {
+                                        let key = match item.protocol.as_str() {
+                                            "ECHONET Lite" => "composer-port-preset-echonet",
+                                            "Syslog" => "composer-port-preset-syslog",
+                                            "SNMP Agent" => "composer-port-preset-snmp-agent",
+                                            "SNMP Trap" => "composer-port-preset-snmp-trap",
+                                            _ => "",
+                                        };
+                                        if !key.is_empty() {
+                                            let mut args = std::collections::HashMap::new();
+                                            args.insert(std::borrow::Cow::Borrowed("port"), item.port.clone().into());
+                                            if ui.button(tr_args(key, &args)).clicked() {
+                                                port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
+                                                ui.close();
+                                            }
+                                        }
                                     }
                                 });
                                 if !self.composer_port_history.is_empty() {
                                     ui.separator();
                                     for h in &self.composer_port_history {
                                         if ui.button(h).clicked() {
-                                            port_chosen = Some(h.clone());
+                                            port_chosen = Some((None, h.clone()));
                                             ui.close();
                                         }
                                     }
                                 }
                             });
-                            if let Some(port) = port_chosen {
+                            if let Some((opt_proto, port)) = port_chosen {
                                 self.composer_port = port;
-                                self.save_config();
+                                if let Some(proto) = opt_proto {
+                                    let port_val = self.composer_port.clone();
+                                    self.record_preset_port_usage(&proto, &port_val);
+                                } else {
+                                    self.save_config();
+                                }
                             }
                         });
                         ui.end_row();

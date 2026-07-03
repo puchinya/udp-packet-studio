@@ -130,9 +130,68 @@ pub struct UdpStudioState {
     pub mra_db: mra::MraDatabase,
     pub dock_state_serialized: Option<String>,
     pub reset_layout_requested: bool,
+    pub protocol_config: crate::types::ProtocolConfig,
+    pub settings_selected_proto_tab: usize,
+    pub inspector_protocols_order: Vec<crate::types::InspectorProtocol>,
+    pub preset_ports_order: Vec<crate::types::PresetPortItem>,
 }
 
 impl UdpStudioState {
+    pub fn record_inspector_protocol_usage(&mut self, proto: InspectorProtocol) {
+        if proto == InspectorProtocol::Raw || proto == InspectorProtocol::TextAscii {
+            return;
+        }
+        if let Some(pos) = self.inspector_protocols_order.iter().position(|&x| x == proto) {
+            self.inspector_protocols_order.remove(pos);
+            self.inspector_protocols_order.insert(0, proto);
+            self.save_config();
+        }
+    }
+
+    pub fn record_preset_port_usage(&mut self, protocol: &str, port: &str) {
+        let target = crate::types::PresetPortItem {
+            protocol: protocol.to_string(),
+            port: port.to_string(),
+        };
+        if let Some(pos) = self.preset_ports_order.iter().position(|x| *x == target) {
+            self.preset_ports_order.remove(pos);
+            self.preset_ports_order.insert(0, target);
+            self.save_config();
+        }
+    }
+
+    pub fn sync_preset_ports_order(&mut self) {
+        let mut current_items = Vec::new();
+        for p in self.protocol_config.echonet_lite_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: p.to_string() });
+        }
+        for p in self.protocol_config.syslog_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "Syslog".to_string(), port: p.to_string() });
+        }
+        for p in self.protocol_config.snmp_agent_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: p.to_string() });
+        }
+        for p in self.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: p.to_string() });
+        }
+
+        let mut new_order = Vec::new();
+        for item in &self.preset_ports_order {
+            if current_items.contains(item) {
+                new_order.push(item.clone());
+            }
+        }
+        for item in current_items {
+            if !new_order.contains(&item) {
+                new_order.push(item);
+            }
+        }
+        if self.preset_ports_order != new_order {
+            self.preset_ports_order = new_order;
+            self.save_config();
+        }
+    }
+
     pub fn is_dark_theme(&self, ctx: &egui::Context) -> bool {
         match self.theme {
             AppTheme::System => {
@@ -181,6 +240,10 @@ impl UdpStudioState {
         self.theme = def.theme;
         self.max_display_data_bytes = def.max_display_data_bytes;
         self.max_log_lines = def.max_log_lines;
+        self.protocol_config = def.protocol_config.clone();
+        self.settings_selected_proto_tab = 0;
+        self.inspector_protocols_order = def.inspector_protocols_order.clone();
+        self.preset_ports_order = def.preset_ports_order.clone();
         self.enforce_log_limits();
         self.save_config();
         self.update_logger_config();
@@ -275,6 +338,9 @@ impl UdpStudioState {
                 max_display_data_bytes: self.max_display_data_bytes,
                 max_log_lines: self.max_log_lines,
                 dock_state: self.dock_state_serialized.clone(),
+                protocol_config: self.protocol_config.clone(),
+                inspector_protocols_order: self.inspector_protocols_order.clone(),
+                preset_ports_order: self.preset_ports_order.clone(),
             };
             config.save();
         }
@@ -469,33 +535,32 @@ impl UdpStudioState {
                     ui.menu_button("▾", |ui| {
                         ui.set_min_width(150.0);
                         ui.menu_button("Presets", |ui| {
-                            if ui.button("ECHONET Lite : 3610").clicked() {
-                                port_chosen = Some("3610".to_string());
-                                ui.close();
-                            }
-                            if ui.button("Syslog : 514").clicked() {
-                                port_chosen = Some("514".to_string());
-                                ui.close();
-                            }
-                            if ui.button("SNMP : 161").clicked() {
-                                port_chosen = Some("161".to_string());
-                                ui.close();
+                            for item in &self.preset_ports_order {
+                                if ui.button(format!("{} : {}", item.protocol, item.port)).clicked() {
+                                    port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
+                                    ui.close();
+                                }
                             }
                         });
                         if !self.listener_port_history.is_empty() {
                             ui.separator();
                             for h in &self.listener_port_history {
                                 if ui.button(h).clicked() {
-                                    port_chosen = Some(h.clone());
+                                    port_chosen = Some((None, h.clone()));
                                     ui.close();
                                 }
                             }
                         }
                     });
                 });
-                if let Some(port) = port_chosen {
+                if let Some((opt_proto, port)) = port_chosen {
                     self.sockets[socket_idx].port = port;
-                    self.save_config();
+                    if let Some(proto) = opt_proto {
+                        let port_val = self.sockets[socket_idx].port.clone();
+                        self.record_preset_port_usage(&proto, &port_val);
+                    } else {
+                        self.save_config();
+                    }
                 }
             });
 
@@ -977,6 +1042,10 @@ impl MainApp {
             mra_db,
             dock_state_serialized: config.dock_state.clone(),
             reset_layout_requested: false,
+            protocol_config: config.protocol_config.clone(),
+            settings_selected_proto_tab: 0,
+            inspector_protocols_order: config.inspector_protocols_order.clone(),
+            preset_ports_order: config.preset_ports_order.clone(),
         };
 
         Self {
@@ -1617,6 +1686,7 @@ impl eframe::App for MainApp {
             let tab_log_display = self.state.tr("settings-tab-log-display");
             let tab_log_saving = self.state.tr("settings-tab-log-saving");
             let tab_others = self.state.tr("settings-tab-others");
+            let tab_protocols = self.state.tr("settings-tab-protocols");
 
             egui::Window::new(settings_title)
                 .open(&mut open)
@@ -1624,13 +1694,14 @@ impl eframe::App for MainApp {
                 .collapsible(false)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
-                    ui.set_min_width(420.0);
+                    ui.set_min_width(520.0);
                     ui.vertical(|ui| {
                         // Tab Selector
                         ui.horizontal(|ui| {
                             ui.selectable_value(&mut self.state.settings_tab, SettingsTab::General, tab_general);
                             ui.selectable_value(&mut self.state.settings_tab, SettingsTab::LogDisplay, tab_log_display);
                             ui.selectable_value(&mut self.state.settings_tab, SettingsTab::LogSaving, tab_log_saving);
+                            ui.selectable_value(&mut self.state.settings_tab, SettingsTab::Protocols, tab_protocols);
                             ui.selectable_value(&mut self.state.settings_tab, SettingsTab::Others, tab_others);
                         });
                         ui.add_space(8.0);
@@ -1781,6 +1852,81 @@ impl eframe::App for MainApp {
                                 if reset_btn.clicked() {
                                     reset_clicked = true;
                                 }
+                            }
+                            SettingsTab::Protocols => {
+                                ui.heading(self.state.tr("settings-proto-title"));
+                                ui.add_space(8.0);
+
+                                ui.horizontal(|ui| {
+                                    // Left: Protocol List
+                                    ui.vertical(|ui| {
+                                        ui.set_width(120.0);
+                                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                                            let items = [
+                                                ("ECHONET Lite", 0),
+                                                ("SNMP", 1),
+                                                ("Syslog", 2),
+                                            ];
+                                            for (name, val) in &items {
+                                                ui.selectable_value(&mut self.state.settings_selected_proto_tab, *val, *name);
+                                            }
+                                        });
+                                    });
+
+                                    ui.separator();
+
+                                    // Right: Config Form details
+                                    ui.vertical(|ui| {
+                                        ui.set_width(ui.available_width());
+                                        match self.state.settings_selected_proto_tab {
+                                            0 => {
+                                                ui.strong("ECHONET Lite");
+                                                ui.add_space(8.0);
+                                                ui.horizontal(|ui| {
+                                                    ui.label(self.state.tr("settings-proto-echonet-port"));
+                                                    let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.echonet_lite_port).desired_width(100.0));
+                                                    if res.changed() {
+                                                        self.state.sync_preset_ports_order();
+                                                    }
+                                                });
+                                            }
+                                            1 => {
+                                                ui.strong("SNMP");
+                                                ui.add_space(8.0);
+                                                egui::Grid::new("snmp_settings_grid")
+                                                    .num_columns(2)
+                                                    .spacing([12.0, 8.0])
+                                                    .show(ui, |ui| {
+                                                        ui.label(self.state.tr("settings-proto-snmp-agent-port"));
+                                                        let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.snmp_agent_port).desired_width(100.0));
+                                                        if res.changed() {
+                                                            self.state.sync_preset_ports_order();
+                                                        }
+                                                        ui.end_row();
+
+                                                        ui.label(self.state.tr("settings-proto-snmp-trap-port"));
+                                                        let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.snmp_trap_port).desired_width(100.0));
+                                                        if res.changed() {
+                                                            self.state.sync_preset_ports_order();
+                                                        }
+                                                        ui.end_row();
+                                                    });
+                                            }
+                                            2 => {
+                                                ui.strong("Syslog");
+                                                ui.add_space(8.0);
+                                                ui.horizontal(|ui| {
+                                                    ui.label(self.state.tr("settings-proto-syslog-port"));
+                                                    let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.syslog_port).desired_width(100.0));
+                                                    if res.changed() {
+                                                        self.state.sync_preset_ports_order();
+                                                    }
+                                                });
+                                            }
+                                            _ => {}
+                                        }
+                                    });
+                                });
                             }
                         }
                         

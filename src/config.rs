@@ -144,6 +144,12 @@ pub struct SavedConfig {
     pub dock_state: Option<String>,
     #[serde(default)]
     pub theme: AppTheme,
+    #[serde(default)]
+    pub protocol_config: crate::types::ProtocolConfig,
+    #[serde(default)]
+    pub inspector_protocols_order: Vec<crate::types::InspectorProtocol>,
+    #[serde(default)]
+    pub preset_ports_order: Vec<crate::types::PresetPortItem>,
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
@@ -179,6 +185,18 @@ impl Default for SavedConfig {
             max_log_lines: 10000,
             dock_state: None,
             theme: AppTheme::System,
+            protocol_config: crate::types::ProtocolConfig::default(),
+            inspector_protocols_order: vec![
+                crate::types::InspectorProtocol::EchonetLite,
+                crate::types::InspectorProtocol::Syslog,
+                crate::types::InspectorProtocol::Snmp,
+            ],
+            preset_ports_order: vec![
+                crate::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
+                crate::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
+                crate::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
+                crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+            ],
         }
     }
 }
@@ -242,6 +260,50 @@ impl SavedConfig {
                     cfg.selected_socket_id = first.id.clone();
                     migrated = true;
                 }
+            }
+
+            // Merge custom protocols (mru sorting)
+            let all_custom_protos = vec![
+                crate::types::InspectorProtocol::EchonetLite,
+                crate::types::InspectorProtocol::Syslog,
+                crate::types::InspectorProtocol::Snmp,
+            ];
+            for p in all_custom_protos {
+                if !cfg.inspector_protocols_order.contains(&p) {
+                    cfg.inspector_protocols_order.push(p);
+                    migrated = true;
+                }
+            }
+
+            // Sync preset ports order on load
+            let mut current_items = Vec::new();
+            for p in cfg.protocol_config.echonet_lite_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: p.to_string() });
+            }
+            for p in cfg.protocol_config.syslog_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "Syslog".to_string(), port: p.to_string() });
+            }
+            for p in cfg.protocol_config.snmp_agent_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: p.to_string() });
+            }
+            for p in cfg.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: p.to_string() });
+            }
+
+            let mut new_order = Vec::new();
+            for item in &cfg.preset_ports_order {
+                if current_items.contains(item) {
+                    new_order.push(item.clone());
+                }
+            }
+            for item in current_items {
+                if !new_order.contains(&item) {
+                    new_order.push(item);
+                }
+            }
+            if cfg.preset_ports_order != new_order {
+                cfg.preset_ports_order = new_order;
+                migrated = true;
             }
 
             if migrated {

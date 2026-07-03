@@ -416,6 +416,7 @@ pub enum SettingsTab {
     General,
     LogDisplay,
     LogSaving,
+    Protocols,
     Others,
 }
 
@@ -431,5 +432,31 @@ impl Default for AppTheme {
         AppTheme::System
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProtocolConfig {
+    pub echonet_lite_port: String,
+    pub snmp_agent_port: String,
+    pub snmp_trap_port: String,
+    pub syslog_port: String,
+}
+
+impl Default for ProtocolConfig {
+    fn default() -> Self {
+        Self {
+            echonet_lite_port: "3610".to_string(),
+            snmp_agent_port: "161".to_string(),
+            snmp_trap_port: "162".to_string(),
+            syslog_port: "514".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PresetPortItem {
+    pub protocol: String,
+    pub port: String,
+}
+
 
 
