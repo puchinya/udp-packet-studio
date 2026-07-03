@@ -60,6 +60,8 @@ impl UdpStudioState {
                         ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Raw, tr("ins-proto-raw"));
                         ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::TextAscii, tr("ins-proto-ascii"));
                         ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::EchonetLite, tr("ins-proto-echonet"));
+                        ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Syslog, tr("ins-proto-syslog"));
+                        ui.selectable_value(&mut self.inspector_protocol, InspectorProtocol::Snmp, tr("ins-proto-snmp"));
                     });
                     
                     ui.add_space(8.0);
@@ -67,38 +69,35 @@ impl UdpStudioState {
                     ui.add_space(8.0);
 
                     // Decode details
-                    match self.inspector_protocol {
-                        InspectorProtocol::Raw => {
-                            egui::ScrollArea::vertical()
-                                .id_salt("hex_dump_scroll")
-                                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("inspector_content_scroll")
+                        .auto_shrink(false)
+                        .show(ui, |ui| {
+                            match self.inspector_protocol {
+                                InspectorProtocol::Raw => {
                                     let mut dump = to_hex_dump(&entry.data);
+                                    let lines = dump.lines().count();
                                     ui.add(
                                         egui::TextEdit::multiline(&mut dump)
                                             .font(egui::TextStyle::Monospace)
                                             .code_editor()
                                             .desired_width(ui.available_width())
+                                            .desired_rows(lines)
                                             .interactive(false)
                                     );
-                                });
-                        }
-                        InspectorProtocol::TextAscii => {
-                            egui::ScrollArea::vertical()
-                                .id_salt("ascii_scroll")
-                                .show(ui, |ui| {
+                                }
+                                InspectorProtocol::TextAscii => {
                                     let mut ascii_rep = to_ascii_inspector(&entry.data);
+                                    let lines = ascii_rep.lines().count();
                                     ui.add(
                                         egui::TextEdit::multiline(&mut ascii_rep)
                                             .font(egui::TextStyle::Monospace)
                                             .desired_width(ui.available_width())
+                                            .desired_rows(lines)
                                             .interactive(false)
                                     );
-                                });
-                        }
-                        InspectorProtocol::EchonetLite => {
-                            egui::ScrollArea::vertical()
-                                .id_salt("echonet_scroll")
-                                .show(ui, |ui| {
+                                }
+                                InspectorProtocol::EchonetLite => {
                                     if entry.data.len() < 12 {
                                         ui.colored_label(
                                             egui::Color32::from_rgb(255, 100, 100),
@@ -226,9 +225,129 @@ impl UdpStudioState {
                                             );
                                         }
                                     }
-                                });
-                        }
-                    }
+                                }
+                                InspectorProtocol::Syslog => {
+                                    if let Some(syslog) = crate::syslog::parse_syslog(&entry.data) {
+                                        egui::Grid::new("syslog_inspector_grid")
+                                            .num_columns(2)
+                                            .spacing([12.0, 6.0])
+                                            .show(ui, |ui| {
+                                                ui.label(tr("ins-syslog-rfc"));
+                                                ui.monospace(&syslog.rfc);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-priority"));
+                                                ui.monospace(format!("{}", syslog.priority));
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-facility"));
+                                                ui.label(format!("{} ({})", syslog.facility, crate::syslog::facility_name(syslog.facility)));
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-severity"));
+                                                ui.label(format!("{} ({})", syslog.severity, crate::syslog::severity_name(syslog.severity)));
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-timestamp"));
+                                                ui.monospace(&syslog.timestamp);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-hostname"));
+                                                ui.monospace(&syslog.hostname);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-appname"));
+                                                ui.monospace(&syslog.app_name);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-procid"));
+                                                ui.monospace(&syslog.proc_id);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-msgid"));
+                                                ui.monospace(&syslog.msg_id);
+                                                ui.end_row();
+
+                                                ui.label(tr("ins-syslog-message"));
+                                                ui.label(&syslog.message);
+                                                ui.end_row();
+                                            });
+                                    } else {
+                                        ui.colored_label(
+                                            egui::Color32::from_rgb(255, 100, 100),
+                                            "Failed to parse packet as Syslog (not starting with '<PRI>')"
+                                        );
+                                    }
+                                }
+                                InspectorProtocol::Snmp => {
+                                    match crate::snmp::parse_snmp(&entry.data) {
+                                        Ok(snmp) => {
+                                            egui::Grid::new("snmp_inspector_grid")
+                                                .num_columns(2)
+                                                .spacing([12.0, 6.0])
+                                                .show(ui, |ui| {
+                                                    ui.label(tr("ins-snmp-version"));
+                                                    let ver_name = if snmp.version == 0 { "v1" } else { "v2c" };
+                                                    ui.monospace(format!("{} (value: {})", ver_name, snmp.version));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-snmp-community"));
+                                                    ui.monospace(&snmp.community);
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-snmp-pdutype"));
+                                                    ui.monospace(format!("{} (0x{:02X})", crate::snmp::pdu_type_name(snmp.pdu_type), snmp.pdu_type));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-snmp-reqid"));
+                                                    ui.monospace(format!("{}", snmp.request_id));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-snmp-errstatus"));
+                                                    ui.monospace(format!("{}", snmp.error_status));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-snmp-errindex"));
+                                                    ui.monospace(format!("{}", snmp.error_index));
+                                                    ui.end_row();
+                                                });
+
+                                            ui.add_space(10.0);
+                                            ui.strong(tr("ins-snmp-varbinds"));
+                                            ui.add_space(4.0);
+
+                                            for (i, (oid, val)) in snmp.varbinds.iter().enumerate() {
+                                                egui::Frame::NONE
+                                                    .fill(ui.visuals().widgets.inactive.bg_fill)
+                                                    .corner_radius(egui::CornerRadius::same(4))
+                                                    .inner_margin(egui::Margin::symmetric(10, 8))
+                                                    .show(ui, |ui| {
+                                                        ui.vertical(|ui| {
+                                                            ui.horizontal(|ui| {
+                                                                ui.strong(format!("#{}:", i + 1));
+                                                                ui.label("OID:");
+                                                                ui.monospace(oid);
+                                                            });
+                                                            ui.add_space(2.0);
+                                                            ui.horizontal(|ui| {
+                                                                ui.label("Value:");
+                                                                ui.monospace(val.to_string_repr());
+                                                            });
+                                                        });
+                                                    });
+                                                ui.add_space(6.0);
+                                            }
+                                        }
+                                        Err(err_msg) => {
+                                            ui.colored_label(
+                                                egui::Color32::from_rgb(255, 100, 100),
+                                                format!("Failed to parse SNMP packet: {}", err_msg)
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        });
                 }
             } else {
                 ui.centered_and_justified(|ui| {

@@ -307,6 +307,53 @@ sockets-lbl-name = 名前:
 sockets-tooltip-delete = このソケットを削除する
 sockets-navbar-btn-list = 🔌 ソケット...
 
+# Syslog & SNMP Inspector
+ins-proto-syslog = 📝 Syslog
+ins-proto-snmp = 📡 SNMP
+ins-syslog-rfc = 規格:
+ins-syslog-priority = 優先度 (Priority):
+ins-syslog-facility = ファシリティ:
+ins-syslog-severity = 重要度 (Severity):
+ins-syslog-timestamp = タイムスタンプ:
+ins-syslog-hostname = ホスト名:
+ins-syslog-appname = アプリ名:
+ins-syslog-procid = プロセスID:
+ins-syslog-msgid = メッセージID:
+ins-syslog-message = メッセージ:
+
+ins-snmp-version = バージョン:
+ins-snmp-community = コミュニティ名:
+ins-snmp-pdutype = PDU タイプ:
+ins-snmp-reqid = リクエスト ID:
+ins-snmp-errstatus = エラーステータス:
+ins-snmp-errindex = エラーインデックス:
+ins-snmp-varbinds = 変数バインドリスト (VarBinds):
+
+# Syslog & SNMP Helper
+syslog-helper-checkbox = 📝 Syslog ビルダー
+snmp-helper-checkbox = 📡 SNMP ビルダー
+
+syslog-version = RFC バージョン:
+syslog-auto-ts = タイムスタンプ自動生成
+syslog-hostname-lbl = ホスト名:
+syslog-appname-lbl = アプリ名:
+syslog-procid-lbl = プロセスID:
+syslog-msgid-lbl = メッセージID:
+syslog-msg-lbl = メッセージ:
+syslog-btn-generate = Syslog 生成
+
+snmp-version-lbl = SNMP バージョン:
+snmp-community-lbl = コミュニティ:
+snmp-pdutype-lbl = PDU タイプ:
+snmp-reqid-lbl = リクエスト ID:
+snmp-errstatus-lbl = エラーステータス:
+snmp-errindex-lbl = エラーインデックス:
+snmp-varbind-add = ➕ 変数を追加
+snmp-varbind-oid = OID:
+snmp-varbind-type = 型:
+snmp-varbind-val = 値:
+snmp-btn-generate = SNMP 生成
+
 
 
 

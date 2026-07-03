@@ -605,6 +605,13 @@ impl UdpStudioState {
                 ui.add_space(8.0);
 
                 let current_target = format!("{}:{}", self.composer_ip, self.composer_port);
+
+                // Exclusive helper activation check
+                let prev_el = self.el_show_helper;
+                let prev_syslog = self.syslog_show_helper;
+                let prev_snmp = self.snmp_show_helper;
+
+                // ECHONET Lite Helper
                 if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
                     self.composer_payload = payload;
                     self.composer_payload_type = format;
@@ -617,6 +624,48 @@ impl UdpStudioState {
                         self.composer_port = "3610".to_string();
                     }
                     self.save_config();
+                }
+
+                // Syslog Helper
+                if let Some((payload, format, target)) = self.show_syslog_helper(ui, &current_target) {
+                    self.composer_payload = payload;
+                    self.composer_payload_type = format;
+                    if let Some(idx) = target.rfind(':') {
+                        let (ip, port) = target.split_at(idx);
+                        self.composer_ip = ip.to_string();
+                        self.composer_port = port[1..].to_string();
+                    } else {
+                        self.composer_ip = target;
+                        self.composer_port = "514".to_string();
+                    }
+                    self.save_config();
+                }
+
+                // SNMP Helper
+                if let Some((payload, format, target)) = self.show_snmp_helper(ui, &current_target) {
+                    self.composer_payload = payload;
+                    self.composer_payload_type = format;
+                    if let Some(idx) = target.rfind(':') {
+                        let (ip, port) = target.split_at(idx);
+                        self.composer_ip = ip.to_string();
+                        self.composer_port = port[1..].to_string();
+                    } else {
+                        self.composer_ip = target;
+                        self.composer_port = "161".to_string();
+                    }
+                    self.save_config();
+                }
+
+                // Exclusivity logic
+                if self.el_show_helper && !prev_el {
+                    self.syslog_show_helper = false;
+                    self.snmp_show_helper = false;
+                } else if self.syslog_show_helper && !prev_syslog {
+                    self.el_show_helper = false;
+                    self.snmp_show_helper = false;
+                } else if self.snmp_show_helper && !prev_snmp {
+                    self.el_show_helper = false;
+                    self.syslog_show_helper = false;
                 }
 
                 ui.add_space(10.0);
@@ -747,5 +796,358 @@ impl UdpStudioState {
             self.composer_name.clear();
             self.save_config();
         }
+    }
+
+    pub fn show_syslog_helper(&mut self, ui: &mut egui::Ui, current_target: &str) -> Option<(String, PayloadType, String)> {
+        crate::locales::init_translations();
+        let lang_id = self.language_id();
+        let tr = |key: &str| {
+            egui_i18n::set_language(&lang_id);
+            egui_i18n::tr!(key)
+        };
+
+        ui.checkbox(&mut self.syslog_show_helper, tr("syslog-helper-checkbox"));
+
+        let mut result = None;
+        if self.syslog_show_helper {
+            ui.add_space(6.0);
+            ui.group(|ui| {
+                ui.strong("Syslog Builder");
+                ui.add_space(8.0);
+
+                let mut generate_clicked = false;
+
+                egui::Grid::new("syslog_grid_shared")
+                    .num_columns(2)
+                    .spacing([10.0, 10.0])
+                    .show(ui, |ui| {
+                        // Protocol Version
+                        ui.label(tr("syslog-version"));
+                        egui::ComboBox::from_id_salt("syslog_version_combo")
+                            .selected_text(if self.syslog_protocol_version == 0 { "RFC 3164 (BSD)" } else { "RFC 5424 (IETF)" })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut self.syslog_protocol_version, 0, "RFC 3164 (BSD)");
+                                ui.selectable_value(&mut self.syslog_protocol_version, 1, "RFC 5424 (IETF)");
+                            });
+                        ui.end_row();
+
+                        // Facility
+                        ui.label(tr("ins-syslog-facility"));
+                        let current_fac = self.syslog_facility as u8;
+                        let fac_label = format!("{} ({})", current_fac, crate::syslog::facility_name(current_fac));
+                        egui::ComboBox::from_id_salt("syslog_facility_combo")
+                            .selected_text(fac_label)
+                            .show_ui(ui, |ui| {
+                                for f in 0..24 {
+                                    let label = format!("{} ({})", f, crate::syslog::facility_name(f));
+                                    ui.selectable_value(&mut self.syslog_facility, f as usize, label);
+                                }
+                            });
+                        ui.end_row();
+
+                        // Severity
+                        ui.label(tr("ins-syslog-severity"));
+                        let current_sev = self.syslog_severity as u8;
+                        let sev_label = crate::syslog::severity_name(current_sev);
+                        egui::ComboBox::from_id_salt("syslog_severity_combo")
+                            .selected_text(sev_label)
+                            .show_ui(ui, |ui| {
+                                for s in 0..8 {
+                                    let label = crate::syslog::severity_name(s);
+                                    ui.selectable_value(&mut self.syslog_severity, s as usize, label);
+                                }
+                            });
+                        ui.end_row();
+
+                        // Auto Timestamp
+                        ui.label("");
+                        ui.checkbox(&mut self.syslog_auto_timestamp, tr("syslog-auto-ts"));
+                        ui.end_row();
+
+                        // Custom Timestamp (if auto is disabled)
+                        if !self.syslog_auto_timestamp {
+                            ui.label(tr("ins-syslog-timestamp"));
+                            ui.text_edit_singleline(&mut self.syslog_timestamp);
+                            ui.end_row();
+                        }
+
+                        // Hostname
+                        ui.label(tr("syslog-hostname-lbl"));
+                        ui.text_edit_singleline(&mut self.syslog_hostname);
+                        ui.end_row();
+
+                        // App Name
+                        ui.label(tr("syslog-appname-lbl"));
+                        ui.text_edit_singleline(&mut self.syslog_app_name);
+                        ui.end_row();
+
+                        if self.syslog_protocol_version == 1 {
+                            // Proc ID
+                            ui.label(tr("syslog-procid-lbl"));
+                            ui.text_edit_singleline(&mut self.syslog_proc_id);
+                            ui.end_row();
+
+                            // Msg ID
+                            ui.label(tr("syslog-msgid-lbl"));
+                            ui.text_edit_singleline(&mut self.syslog_msg_id);
+                            ui.end_row();
+                        }
+
+                        // Message
+                        ui.label(tr("syslog-msg-lbl"));
+                        ui.text_edit_singleline(&mut self.syslog_msg);
+                        ui.end_row();
+                    });
+
+                ui.add_space(8.0);
+                if ui.button(tr("syslog-btn-generate")).clicked() {
+                    generate_clicked = true;
+                }
+
+                if generate_clicked {
+                    let ts = if self.syslog_auto_timestamp {
+                        let now = chrono::Local::now();
+                        if self.syslog_protocol_version == 0 {
+                            // RFC 3164 timestamp: Mmm dd hh:mm:ss
+                            now.format("%b %e %H:%M:%S").to_string()
+                        } else {
+                            // RFC 5424 timestamp: ISO 8601
+                            now.format("%Y-%m-%dT%H:%M:%S%.3f%:z").to_string()
+                        }
+                    } else {
+                        self.syslog_timestamp.clone()
+                    };
+
+                    let syslog_str = if self.syslog_protocol_version == 0 {
+                        crate::syslog::build_syslog_rfc3164(
+                            self.syslog_facility,
+                            self.syslog_severity,
+                            &ts,
+                            &self.syslog_hostname,
+                            &self.syslog_app_name,
+                            &self.syslog_msg
+                        )
+                    } else {
+                        crate::syslog::build_syslog_rfc5424(
+                            self.syslog_facility,
+                            self.syslog_severity,
+                            &ts,
+                            &self.syslog_hostname,
+                            &self.syslog_app_name,
+                            &self.syslog_proc_id,
+                            &self.syslog_msg_id,
+                            &self.syslog_msg
+                        )
+                    };
+
+                    let mut target = current_target.trim().to_string();
+                    if target.is_empty() || target == "127.0.0.1:9000" {
+                        target = "127.0.0.1:514".to_string();
+                    } else if !target.contains(':') {
+                        target = format!("{}:514", target);
+                    }
+
+                    result = Some((syslog_str, PayloadType::Text, target));
+                }
+            });
+        }
+        result
+    }
+
+    pub fn show_snmp_helper(&mut self, ui: &mut egui::Ui, current_target: &str) -> Option<(String, PayloadType, String)> {
+        crate::locales::init_translations();
+        let lang_id = self.language_id();
+        let tr = |key: &str| {
+            egui_i18n::set_language(&lang_id);
+            egui_i18n::tr!(key)
+        };
+
+        ui.checkbox(&mut self.snmp_show_helper, tr("snmp-helper-checkbox"));
+
+        let mut result = None;
+        if self.snmp_show_helper {
+            ui.add_space(6.0);
+            ui.group(|ui| {
+                ui.strong("SNMP Builder");
+                ui.add_space(8.0);
+
+                let mut generate_clicked = false;
+
+                egui::Grid::new("snmp_grid_shared")
+                    .num_columns(2)
+                    .spacing([10.0, 10.0])
+                    .show(ui, |ui| {
+                        // SNMP Version
+                        ui.label(tr("snmp-version-lbl"));
+                        egui::ComboBox::from_id_salt("snmp_version_combo")
+                            .selected_text(if self.snmp_version == 0 { "v1" } else { "v2c" })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut self.snmp_version, 0, "v1");
+                                ui.selectable_value(&mut self.snmp_version, 1, "v2c");
+                            });
+                        ui.end_row();
+
+                        // Community
+                        ui.label(tr("snmp-community-lbl"));
+                        ui.text_edit_singleline(&mut self.snmp_community);
+                        ui.end_row();
+
+                        // PDU Type
+                        ui.label(tr("snmp-pdutype-lbl"));
+                        let pdu_label = match self.snmp_pdu_type {
+                            0 => "GetRequest (0xa0)",
+                            1 => "GetNextRequest (0xa1)",
+                            2 => "SetRequest (0xa3)",
+                            3 => "Trap (v2) (0xa7)",
+                            _ => "GetRequest (0xa0)",
+                        };
+                        egui::ComboBox::from_id_salt("snmp_pdu_combo")
+                            .selected_text(pdu_label)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut self.snmp_pdu_type, 0, "GetRequest (0xa0)");
+                                ui.selectable_value(&mut self.snmp_pdu_type, 1, "GetNextRequest (0xa1)");
+                                ui.selectable_value(&mut self.snmp_pdu_type, 2, "SetRequest (0xa3)");
+                                ui.selectable_value(&mut self.snmp_pdu_type, 3, "Trap (v2) (0xa7)");
+                            });
+                        ui.end_row();
+
+                        // Request ID
+                        ui.label(tr("snmp-reqid-lbl"));
+                        ui.add(egui::DragValue::new(&mut self.snmp_request_id));
+                        ui.end_row();
+
+                        if self.snmp_pdu_type == 2 || self.snmp_pdu_type == 3 {
+                            // Error Status
+                            ui.label(tr("snmp-errstatus-lbl"));
+                            ui.add(egui::DragValue::new(&mut self.snmp_error_status));
+                            ui.end_row();
+
+                            // Error Index
+                            ui.label(tr("snmp-errindex-lbl"));
+                            ui.add(egui::DragValue::new(&mut self.snmp_error_index));
+                            ui.end_row();
+                        }
+                    });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(4.0);
+                ui.strong(tr("ins-snmp-varbinds"));
+                ui.add_space(4.0);
+
+                let mut remove_idx = None;
+                let varbinds_len = self.snmp_varbinds.len();
+
+                egui::ScrollArea::vertical()
+                    .id_salt("snmp_vars_scroll")
+                    .max_height(200.0)
+                    .show(ui, |ui| {
+                        for (i, vb) in self.snmp_varbinds.iter_mut().enumerate() {
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("#{}", i + 1));
+                                    
+                                    ui.label(tr("snmp-varbind-oid"));
+                                    ui.add(egui::TextEdit::singleline(&mut vb.oid).desired_width(120.0));
+
+                                    if varbinds_len > 1 && ui.small_button("✖").clicked() {
+                                        remove_idx = Some(i);
+                                    }
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label(tr("snmp-varbind-type"));
+                                    let type_label = match vb.value_type {
+                                        crate::types::SnmpValueType::Integer => "Integer",
+                                        crate::types::SnmpValueType::OctetString => "Octet String",
+                                        crate::types::SnmpValueType::ObjectId => "Object ID",
+                                        crate::types::SnmpValueType::Null => "Null",
+                                        crate::types::SnmpValueType::IpAddress => "IP Address",
+                                        crate::types::SnmpValueType::Counter32 => "Counter32",
+                                        crate::types::SnmpValueType::Gauge32 => "Gauge32",
+                                        crate::types::SnmpValueType::TimeTicks => "TimeTicks",
+                                    };
+                                    egui::ComboBox::from_id_salt(format!("snmp_valtype_{}", i))
+                                        .selected_text(type_label)
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::Null, "Null");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::Integer, "Integer");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::OctetString, "Octet String");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::ObjectId, "Object ID");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::IpAddress, "IP Address");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::Counter32, "Counter32");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::Gauge32, "Gauge32");
+                                            ui.selectable_value(&mut vb.value_type, crate::types::SnmpValueType::TimeTicks, "TimeTicks");
+                                        });
+
+                                    if vb.value_type != crate::types::SnmpValueType::Null {
+                                        ui.label(tr("snmp-varbind-val"));
+                                        ui.add(egui::TextEdit::singleline(&mut vb.value).desired_width(120.0));
+                                    }
+                                });
+                            });
+                            ui.add_space(4.0);
+                        }
+                    });
+
+                if let Some(idx) = remove_idx {
+                    self.snmp_varbinds.remove(idx);
+                }
+
+                ui.add_space(4.0);
+                if ui.small_button(tr("snmp-varbind-add")).clicked() {
+                    self.snmp_varbinds.push(crate::types::SnmpVarBindState {
+                        oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                        value_type: crate::types::SnmpValueType::Null,
+                        value: String::new(),
+                    });
+                }
+
+                ui.add_space(8.0);
+                if ui.button(tr("snmp-btn-generate")).clicked() {
+                    generate_clicked = true;
+                }
+
+                if generate_clicked {
+                    let pdu_type_val = match self.snmp_pdu_type {
+                        0 => 0xa0,
+                        1 => 0xa1,
+                        2 => 0xa3,
+                        3 => 0xa7,
+                        _ => 0xa0,
+                    };
+
+                    match crate::snmp::build_snmp(
+                        self.snmp_version as u8,
+                        &self.snmp_community,
+                        pdu_type_val,
+                        self.snmp_request_id,
+                        self.snmp_error_status,
+                        self.snmp_error_index,
+                        &self.snmp_varbinds
+                    ) {
+                        Ok(bytes) => {
+                            let hex_str = bytes.iter()
+                                .map(|b| format!("{:02X}", b))
+                                .collect::<Vec<String>>()
+                                .join(" ");
+
+                            let mut target = current_target.trim().to_string();
+                            if target.is_empty() || target == "127.0.0.1:9000" {
+                                target = "127.0.0.1:161".to_string();
+                            } else if !target.contains(':') {
+                                target = format!("{}:161", target);
+                            }
+
+                            result = Some((hex_str, PayloadType::Hex, target));
+                        }
+                        Err(e) => {
+                            self.add_system_error(format!("SNMP generation error: {}", e));
+                        }
+                    }
+                }
+            });
+        }
+        result
     }
 }

@@ -307,6 +307,53 @@ sockets-lbl-name = Name:
 sockets-tooltip-delete = Delete this socket
 sockets-navbar-btn-list = 🔌 Sockets...
 
+# Syslog & SNMP Inspector
+ins-proto-syslog = 📝 Syslog
+ins-proto-snmp = 📡 SNMP
+ins-syslog-rfc = Standard:
+ins-syslog-priority = Priority:
+ins-syslog-facility = Facility:
+ins-syslog-severity = Severity:
+ins-syslog-timestamp = Timestamp:
+ins-syslog-hostname = Hostname:
+ins-syslog-appname = App Name:
+ins-syslog-procid = Process ID:
+ins-syslog-msgid = Message ID:
+ins-syslog-message = Message:
+
+ins-snmp-version = Version:
+ins-snmp-community = Community:
+ins-snmp-pdutype = PDU Type:
+ins-snmp-reqid = Request ID:
+ins-snmp-errstatus = Error Status:
+ins-snmp-errindex = Error Index:
+ins-snmp-varbinds = Variable Bindings:
+
+# Syslog & SNMP Helper
+syslog-helper-checkbox = 📝 Syslog Builder
+snmp-helper-checkbox = 📡 SNMP Builder
+
+syslog-version = RFC Version:
+syslog-auto-ts = Auto Timestamp
+syslog-hostname-lbl = Hostname:
+syslog-appname-lbl = App Name:
+syslog-procid-lbl = Proc ID:
+syslog-msgid-lbl = Msg ID:
+syslog-msg-lbl = Message:
+syslog-btn-generate = Generate Syslog
+
+snmp-version-lbl = SNMP Version:
+snmp-community-lbl = Community:
+snmp-pdutype-lbl = PDU Type:
+snmp-reqid-lbl = Request ID:
+snmp-errstatus-lbl = Error Status:
+snmp-errindex-lbl = Error Index:
+snmp-varbind-add = ➕ Add Variable
+snmp-varbind-oid = OID:
+snmp-varbind-type = Type:
+snmp-varbind-val = Value:
+snmp-btn-generate = Generate SNMP
+
 
 
 

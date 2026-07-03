@@ -9,6 +9,8 @@ pub mod locales;
 pub mod mra;
 pub mod mra_defs;
 pub mod filter;
+pub mod syslog;
+pub mod snmp;
 
 use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -81,6 +83,29 @@ pub struct UdpStudioState {
     pub el_esv_preset: usize,
     pub el_properties: Vec<ElBuilderProperty>, // list of EPC+EDT rows
     pub el_show_helper: bool,
+
+    // Syslog Helper state
+    pub syslog_show_helper: bool,
+    pub syslog_protocol_version: usize, // 0 = RFC 3164, 1 = RFC 5424
+    pub syslog_facility: usize, // 0..23
+    pub syslog_severity: usize, // 0..7
+    pub syslog_auto_timestamp: bool,
+    pub syslog_timestamp: String,
+    pub syslog_hostname: String,
+    pub syslog_app_name: String,
+    pub syslog_proc_id: String,
+    pub syslog_msg_id: String,
+    pub syslog_msg: String,
+
+    // SNMP Helper state
+    pub snmp_show_helper: bool,
+    pub snmp_version: usize, // 0 = v1, 1 = v2c
+    pub snmp_community: String,
+    pub snmp_pdu_type: usize, // 0 = GetRequest, 1 = GetNextRequest, 2 = SetRequest, 3 = Trap
+    pub snmp_request_id: i32,
+    pub snmp_error_status: i32,
+    pub snmp_error_index: i32,
+    pub snmp_varbinds: Vec<crate::types::SnmpVarBindState>,
 
     // Multicast fields (UI inputs)
     pub multicast_input_addr: String,
@@ -902,6 +927,29 @@ impl MainApp {
             el_esv_preset: 0,
             el_properties: vec![ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
             el_show_helper: false,
+            syslog_show_helper: false,
+            syslog_protocol_version: 0,
+            syslog_facility: 1, // User-level
+            syslog_severity: 5, // Notice
+            syslog_auto_timestamp: true,
+            syslog_timestamp: String::new(),
+            syslog_hostname: "localhost".to_string(),
+            syslog_app_name: "udp-packet-studio".to_string(),
+            syslog_proc_id: "-".to_string(),
+            syslog_msg_id: "-".to_string(),
+            syslog_msg: "Hello, Syslog!".to_string(),
+            snmp_show_helper: false,
+            snmp_version: 1, // v2c
+            snmp_community: "public".to_string(),
+            snmp_pdu_type: 0, // GetRequest
+            snmp_request_id: 1,
+            snmp_error_status: 0,
+            snmp_error_index: 0,
+            snmp_varbinds: vec![crate::types::SnmpVarBindState {
+                oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                value_type: crate::types::SnmpValueType::Null,
+                value: String::new(),
+            }],
             multicast_input_addr: "224.0.23.0".to_string(),
             multicast_input_interface: "0.0.0.0".to_string(),
             inspector_protocol: InspectorProtocol::Raw,
