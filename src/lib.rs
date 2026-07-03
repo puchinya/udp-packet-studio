@@ -473,6 +473,14 @@ impl UdpStudioState {
                                 port_chosen = Some("3610".to_string());
                                 ui.close();
                             }
+                            if ui.button("Syslog : 514").clicked() {
+                                port_chosen = Some("514".to_string());
+                                ui.close();
+                            }
+                            if ui.button("SNMP : 161").clicked() {
+                                port_chosen = Some("161".to_string());
+                                ui.close();
+                            }
                         });
                         if !self.listener_port_history.is_empty() {
                             ui.separator();

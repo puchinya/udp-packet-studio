@@ -570,6 +570,14 @@ impl UdpStudioState {
                                         port_chosen = Some("3610".to_string());
                                         ui.close();
                                     }
+                                    if ui.button(tr("composer-port-preset-syslog")).clicked() {
+                                        port_chosen = Some("514".to_string());
+                                        ui.close();
+                                    }
+                                    if ui.button(tr("composer-port-preset-snmp")).clicked() {
+                                        port_chosen = Some("161".to_string());
+                                        ui.close();
+                                    }
                                 });
                                 if !self.composer_port_history.is_empty() {
                                     ui.separator();

@@ -179,6 +179,8 @@ composer-ip-history-section = 履歴
 
 composer-port-preset-section = プリセット
 composer-port-preset-echonet = ECHONET Lite : 3610
+composer-port-preset-syslog = Syslog : 514
+composer-port-preset-snmp = SNMP : 161
 
 # Log Viewer Tab
 log-btn-clear = 🗑 クリア
