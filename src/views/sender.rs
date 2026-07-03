@@ -457,13 +457,19 @@ impl UdpStudioState {
             // Listener Status Warning
             let is_listening = self.get_selected_socket().map(|s| s.is_listening).unwrap_or(false);
             if !is_listening {
+                let is_dark = self.is_dark_theme(ui.ctx());
+                let (warn_bg, warn_fg) = if is_dark {
+                    (egui::Color32::from_rgb(45, 20, 20), egui::Color32::from_rgb(255, 120, 120))
+                } else {
+                    (egui::Color32::from_rgb(253, 237, 237), egui::Color32::from_rgb(95, 33, 32))
+                };
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(45, 20, 20))
+                    .fill(warn_bg)
                     .corner_radius(egui::CornerRadius::same(4))
                     .inner_margin(egui::Margin::same(10))
                     .show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.colored_label(egui::Color32::from_rgb(255, 120, 120), tr("composer-start-listener-tip"));
+                            ui.colored_label(warn_fg, tr("composer-start-listener-tip"));
                         });
                     });
                 ui.add_space(10.0);

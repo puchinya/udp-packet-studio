@@ -284,6 +284,7 @@ impl UdpStudioState {
                 egui::vec2(ui.available_width(), remaining_height),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
+                    let is_dark = self.is_dark_theme(ui.ctx());
                     let mut table = TableBuilder::new(ui)
                         .striped(true)
                         .resizable(true)
@@ -326,10 +327,38 @@ impl UdpStudioState {
                                 let is_selected = Some(orig_idx) == self.selected_log_idx;
 
                                 let (direction_text, color) = match entry.direction {
-                                    LogDirection::Sent => ("SENT", egui::Color32::from_rgb(100, 220, 100)),
-                                    LogDirection::Received => ("RECV", egui::Color32::from_rgb(100, 180, 255)),
-                                    LogDirection::SystemInfo => ("INFO", egui::Color32::from_rgb(200, 200, 200)),
-                                    LogDirection::SystemError => ("ERROR", egui::Color32::from_rgb(255, 90, 90)),
+                                    LogDirection::Sent => {
+                                        let c = if is_dark {
+                                            egui::Color32::from_rgb(100, 220, 100)
+                                        } else {
+                                            egui::Color32::from_rgb(46, 125, 50)
+                                        };
+                                        ("SENT", c)
+                                    }
+                                    LogDirection::Received => {
+                                        let c = if is_dark {
+                                            egui::Color32::from_rgb(100, 180, 255)
+                                        } else {
+                                            egui::Color32::from_rgb(25, 118, 210)
+                                        };
+                                        ("RECV", c)
+                                    }
+                                    LogDirection::SystemInfo => {
+                                        let c = if is_dark {
+                                            egui::Color32::from_rgb(200, 200, 200)
+                                        } else {
+                                            egui::Color32::from_rgb(117, 117, 117)
+                                        };
+                                        ("INFO", c)
+                                    }
+                                    LogDirection::SystemError => {
+                                        let c = if is_dark {
+                                            egui::Color32::from_rgb(255, 90, 90)
+                                        } else {
+                                            egui::Color32::from_rgb(211, 47, 47)
+                                        };
+                                        ("ERROR", c)
+                                    }
                                 };
 
                                 let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
