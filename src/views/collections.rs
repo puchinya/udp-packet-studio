@@ -243,12 +243,12 @@ impl UdpStudioState {
                         let bytes = match payload_type {
                             PayloadType::Text => payload_str.as_bytes().to_vec(),
                             PayloadType::Hex => parse_hex_to_bytes(&payload_str).unwrap_or_default(),
-                            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                                 self.generate_helper_bytes(true, payload_type).unwrap_or_default()
                             }
                         };
                         self.try_parse_payload_to_helper(true, payload_type, &bytes);
-                        if payload_type == PayloadType::EchonetLite || payload_type == PayloadType::Syslog || payload_type == PayloadType::Snmp {
+                        if payload_type == PayloadType::EchonetLite || payload_type == PayloadType::Syslog || payload_type == PayloadType::Snmp || payload_type == PayloadType::Dns || payload_type == PayloadType::Coap {
                             self.collections_selected_proto = payload_type;
                         }
                     }
@@ -271,12 +271,14 @@ impl UdpStudioState {
 
                 let is_helper_active = req.payload_type == PayloadType::EchonetLite
                     || req.payload_type == PayloadType::Syslog
-                    || req.payload_type == PayloadType::Snmp;
+                    || req.payload_type == PayloadType::Snmp
+                    || req.payload_type == PayloadType::Dns
+                    || req.payload_type == PayloadType::Coap;
 
                 if is_helper_active {
                     if let Ok(bytes) = self.generate_helper_bytes(true, req.payload_type) {
                         req.payload = match req.payload_type {
-                            PayloadType::EchonetLite | PayloadType::Snmp => {
+                            PayloadType::EchonetLite | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                                 bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
                             }
                             PayloadType::Syslog => {
@@ -320,10 +322,17 @@ impl UdpStudioState {
                                         ip_chosen = Some("255.255.255.255".to_string());
                                         ui.close();
                                     }
-                                    if ui.button("224.0.23.0  (ECHONET Lite Multicast)").clicked() {
-                                        ip_chosen = Some("224.0.23.0".to_string());
-                                        ui.close();
-                                    }
+                                     // Multicast Submenu
+                                     ui.menu_button(tr("composer-ip-preset-multicast"), |ui| {
+                                         if ui.button("224.0.23.0  (ECHONET Lite)").clicked() {
+                                             ip_chosen = Some("224.0.23.0".to_string());
+                                             ui.close();
+                                         }
+                                         if ui.button("224.0.0.251  (mDNS IPv4)").clicked() {
+                                             ip_chosen = Some("224.0.0.251".to_string());
+                                             ui.close();
+                                         }
+                                     });
 
                                     // NIF broadcast addresses
                                     if let Ok(ifaces) = get_if_addrs::get_if_addrs() {
@@ -378,9 +387,12 @@ impl UdpStudioState {
                                 ui.menu_button("▾", |ui| {
                                     ui.set_min_width(150.0);
                                     ui.menu_button(tr("composer-port-preset-section"), |ui| {
-                                        if ui.button(tr("composer-port-preset-echonet")).clicked() {
-                                            port_chosen = Some("3610".to_string());
-                                            ui.close();
+                                        for item in &self.preset_ports_order {
+                                            let label = format!("{} : {}", item.protocol, item.port);
+                                            if ui.button(&label).clicked() {
+                                                port_chosen = Some(item.port.clone());
+                                                ui.close();
+                                            }
                                         }
                                     });
                                     if !self.composer_port_history.is_empty() {
@@ -438,12 +450,16 @@ impl UdpStudioState {
                                         PayloadType::EchonetLite => PayloadType::EchonetLite,
                                         PayloadType::Syslog => PayloadType::Syslog,
                                         PayloadType::Snmp => PayloadType::Snmp,
+                                        PayloadType::Dns => PayloadType::Dns,
+                                        PayloadType::Coap => PayloadType::Coap,
                                         _ => self.collections_selected_proto,
                                     };
                                     let current_proto_name = match active_proto {
                                         PayloadType::EchonetLite => "ECHONET Lite",
                                         PayloadType::Syslog => "Syslog",
                                         PayloadType::Snmp => "SNMP",
+                                        PayloadType::Dns => "DNS",
+                                        PayloadType::Coap => "CoAP",
                                         _ => "ECHONET Lite",
                                     };
 
@@ -477,12 +493,16 @@ impl UdpStudioState {
                                     PayloadType::EchonetLite => PayloadType::EchonetLite,
                                     PayloadType::Syslog => PayloadType::Syslog,
                                     PayloadType::Snmp => PayloadType::Snmp,
+                                    PayloadType::Dns => PayloadType::Dns,
+                                    PayloadType::Coap => PayloadType::Coap,
                                     _ => self.collections_selected_proto,
                                 };
                                 let current_proto_name = match active_proto {
                                     PayloadType::EchonetLite => "ECHONET Lite",
                                     PayloadType::Syslog => "Syslog",
                                     PayloadType::Snmp => "SNMP",
+                                    PayloadType::Dns => "DNS",
+                                    PayloadType::Coap => "CoAP",
                                     _ => "ECHONET Lite",
                                 };
 
@@ -518,6 +538,8 @@ impl UdpStudioState {
                                             PayloadType::EchonetLite => "ECHONET Lite",
                                             PayloadType::Syslog => "Syslog",
                                             PayloadType::Snmp => "SNMP",
+                                            PayloadType::Dns => "DNS",
+                                            PayloadType::Coap => "CoAP",
                                             _ => "",
                                         };
                                         if !proto_name.is_empty() {
@@ -537,6 +559,8 @@ impl UdpStudioState {
                                 "ECHONET Lite" => PayloadType::EchonetLite,
                                 "Syslog" => PayloadType::Syslog,
                                 "SNMP" => PayloadType::Snmp,
+                                "DNS" => PayloadType::Dns,
+                                "CoAP" => PayloadType::Coap,
                                 _ => PayloadType::EchonetLite,
                             };
                             self.collections_selected_proto = to_type;
@@ -564,6 +588,10 @@ impl UdpStudioState {
                           self.show_syslog_helper(ui, true);
                       } else if req.payload_type == PayloadType::Snmp {
                           self.show_snmp_helper(ui, true);
+                      } else if req.payload_type == PayloadType::Dns {
+                          self.show_dns_helper(ui, true);
+                      } else if req.payload_type == PayloadType::Coap {
+                          self.show_coap_helper(ui, true);
                       }
                       
                       ui.add_space(6.0);

@@ -154,7 +154,19 @@ impl UdpWorker {
                             match target.to_socket_addrs() {
                                 Ok(mut addrs) => {
                                     if let Some(target_addr) = addrs.next() {
-                                        match socket.send_to(&data, target_addr) {
+                                        let send_res = if data.is_empty() && cfg!(target_os = "macos") {
+                                            // macOS BSD socket hack: sendto with 0-byte fails, but connect + send works.
+                                            socket.connect(target_addr)
+                                                .and_then(|_| socket.send(&data))
+                                                .and_then(|sent| {
+                                                    // Disconnect by connecting to an invalid address/family
+                                                    let _ = socket.connect("0.0.0.0:0");
+                                                    Ok(sent)
+                                                })
+                                        } else {
+                                            socket.send_to(&data, target_addr)
+                                        };
+                                        match send_res {
                                             Ok(_) => {
                                                 let local_addr = socket.local_addr().unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], 0)));
                                                 event_sender.send(UdpEvent::Sent {

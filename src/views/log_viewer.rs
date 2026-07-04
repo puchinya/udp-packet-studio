@@ -22,7 +22,7 @@ impl UdpStudioState {
             egui_i18n::translate_fluent(key, &fluent_args)
         };
 
-        let mut new_selection = self.selected_log_idx;
+        let old_selection = self.selected_log_idx;
         let mut scroll_to_row_idx = None;
 
         let filtered_indices = &self.filtered_indices;
@@ -107,7 +107,6 @@ impl UdpStudioState {
                         self.last_clicked_log_idx = Some(next_idx);
                     }
                     self.sync_selected_log_idx();
-                    new_selection = self.selected_log_idx;
                     scroll_to_row_idx = Some(pos);
                 }
             }
@@ -126,7 +125,7 @@ impl UdpStudioState {
                     self.filtered_indices.clear();
                     self.selected_log_indices.clear();
                     self.last_clicked_log_idx = None;
-                    new_selection = None;
+                    self.selected_log_idx = None;
                 }
 
                 ui.add_space(8.0);
@@ -379,7 +378,7 @@ impl UdpStudioState {
                                     }
                                 };
 
-                                let (direction_text, color) = match entry.direction {
+                                let (direction_text, mut color) = match entry.direction {
                                     LogDirection::Sent => {
                                         let c = if is_dark {
                                             egui::Color32::from_rgb(100, 220, 100)
@@ -413,6 +412,15 @@ impl UdpStudioState {
                                         ("ERROR", c)
                                     }
                                 };
+
+                                if is_selected && !is_dark {
+                                    color = match entry.direction {
+                                        LogDirection::Sent => egui::Color32::from_rgb(180, 255, 180),
+                                        LogDirection::Received => egui::Color32::from_rgb(200, 230, 255),
+                                        LogDirection::SystemInfo => egui::Color32::from_rgb(240, 240, 240),
+                                        LogDirection::SystemError => egui::Color32::from_rgb(255, 200, 200),
+                                    };
+                                }
 
                                 let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
                                 let preview_truncated = entry.get_preview(self.max_display_data_bytes);
@@ -523,7 +531,6 @@ impl UdpStudioState {
                 self.selected_log_indices.insert(orig_idx);
                 self.last_clicked_log_idx = Some(orig_idx);
                 self.sync_selected_log_idx();
-                new_selection = self.selected_log_idx;
             }
         } else if let Some((row_index, orig_idx)) = clicked_row {
             if is_shift {
@@ -567,13 +574,11 @@ impl UdpStudioState {
                 self.last_clicked_log_idx = Some(orig_idx);
             }
             self.sync_selected_log_idx();
-            new_selection = self.selected_log_idx;
         }
         });
 
-        if self.selected_log_idx != new_selection {
-            self.selected_log_idx = new_selection;
-            if let Some(idx) = new_selection {
+        if old_selection != self.selected_log_idx {
+            if let Some(idx) = self.selected_log_idx {
                 if idx < self.logs.len() {
                     let entry = &self.logs[idx];
                     let src_port = entry.src_port.as_str();
@@ -583,6 +588,8 @@ impl UdpStudioState {
                     let syslog_ports: Vec<&str> = self.protocol_config.syslog_port.split(',').map(|s| s.trim()).collect();
                     let snmp_agent_ports: Vec<&str> = self.protocol_config.snmp_agent_port.split(',').map(|s| s.trim()).collect();
                     let snmp_trap_ports: Vec<&str> = self.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).collect();
+                    let dns_ports: Vec<&str> = self.protocol_config.dns_port.split(',').map(|s| s.trim()).collect();
+                    let coap_ports: Vec<&str> = self.protocol_config.coap_port.split(',').map(|s| s.trim()).collect();
 
                     if el_ports.contains(&src_port) || el_ports.contains(&dest_port) {
                         self.inspector_protocol = crate::types::InspectorProtocol::EchonetLite;
@@ -595,6 +602,12 @@ impl UdpStudioState {
                     {
                         self.inspector_protocol = crate::types::InspectorProtocol::Snmp;
                         self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Snmp);
+                    } else if dns_ports.contains(&src_port) || dns_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Dns;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Dns);
+                    } else if coap_ports.contains(&src_port) || coap_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Coap;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Coap);
                     } else {
                         self.inspector_protocol = crate::types::InspectorProtocol::Raw;
                     }

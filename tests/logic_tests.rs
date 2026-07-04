@@ -105,14 +105,19 @@ fn make_test_state() -> UdpStudioState {
             udp_packet_studio::types::InspectorProtocol::EchonetLite,
             udp_packet_studio::types::InspectorProtocol::Syslog,
             udp_packet_studio::types::InspectorProtocol::Snmp,
+            udp_packet_studio::types::InspectorProtocol::Dns,
+            udp_packet_studio::types::InspectorProtocol::Coap,
         ],
         preset_ports_order: vec![
             udp_packet_studio::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "DNS".to_string(), port: "53".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "DNS".to_string(), port: "5353".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "CoAP".to_string(), port: "5683".to_string() },
         ],
-        protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string()],
+        protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string(), "DNS".to_string(), "CoAP".to_string()],
         composer_pending_format_change: None,
         collection_pending_format_change: None,
         last_selected_request_id: None,
@@ -150,6 +155,38 @@ fn make_test_state() -> UdpStudioState {
         req_snmp_show_helper: false,
         composer_selected_proto: PayloadType::EchonetLite,
         collections_selected_proto: PayloadType::EchonetLite,
+        dns_show_helper: false,
+        dns_transaction_id: 1,
+        dns_flags: 0x0100,
+        dns_qname: "google.com".to_string(),
+        dns_qtype: 1,
+        dns_qclass: 1,
+        coap_show_helper: false,
+        coap_version: 1,
+        coap_mtype: 0,
+        coap_code: 1,
+        coap_message_id: 1,
+        coap_token: "DEAD".to_string(),
+        coap_options: vec![
+            udp_packet_studio::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+        ],
+        coap_payload: String::new(),
+        req_dns_show_helper: false,
+        req_dns_transaction_id: 1,
+        req_dns_flags: 0x0100,
+        req_dns_qname: "google.com".to_string(),
+        req_dns_qtype: 1,
+        req_dns_qclass: 1,
+        req_coap_show_helper: false,
+        req_coap_version: 1,
+        req_coap_mtype: 0,
+        req_coap_code: 1,
+        req_coap_message_id: 1,
+        req_coap_token: "DEAD".to_string(),
+        req_coap_options: vec![
+            udp_packet_studio::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+        ],
+        req_coap_payload: String::new(),
     }
 }
 
@@ -484,4 +521,81 @@ fn test_udp_worker_unreachable_port_continuation() {
 
     assert!(got_received, "Socket should still be receiving packets after an unreachable target send");
 }
+
+#[test]
+fn test_udp_worker_empty_packet_send() {
+    use std::sync::mpsc::channel;
+    use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
+    use std::time::Duration;
+    use std::net::UdpSocket;
+    use eframe::egui;
+
+    let (tx_event, rx_event) = channel();
+    let ctx = egui::Context::default();
+    let worker = UdpWorker::spawn(tx_event, ctx);
+
+    // Bind local receiver socket
+    let receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let receiver_addr = receiver.local_addr().unwrap();
+
+    // Bind worker socket
+    let socket_id = "test-empty-socket".to_string();
+    worker.send(UdpCommand::Bind {
+        id: socket_id.clone(),
+        addr: "127.0.0.1:0".to_string(),
+    });
+
+    // Wait for the socket to bind and get its ID
+    let mut bound = false;
+    for _ in 0..100 {
+        if let Ok(UdpEvent::Bound { id, .. }) = rx_event.recv_timeout(Duration::from_millis(10)) {
+            if id == socket_id {
+                bound = true;
+                break;
+            }
+        }
+    }
+    assert!(bound);
+
+    // Send empty (0-byte) packet to the receiver socket
+    worker.send(UdpCommand::Send {
+        id: socket_id.clone(),
+        target: receiver_addr.to_string(),
+        data: vec![],
+    });
+
+    // Wait for Sent event (with no Error)
+    let mut sent = false;
+    for _ in 0..100 {
+        match rx_event.recv_timeout(Duration::from_millis(10)) {
+            Ok(UdpEvent::Sent { id, data, .. }) => {
+                if id == socket_id {
+                    assert!(data.is_empty());
+                    sent = true;
+                    break;
+                }
+            }
+            Ok(UdpEvent::Error { id, err }) => {
+                if id == socket_id {
+                    panic!("Empty packet send failed with error: {}", err);
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(sent, "UdpEvent::Sent should be received");
+
+    // Verify receiver socket actually receives a 0-byte packet
+    let mut buf = [0u8; 10];
+    receiver.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
+    match receiver.recv_from(&mut buf) {
+        Ok((bytes_recvd, _src)) => {
+            assert_eq!(bytes_recvd, 0);
+        }
+        Err(e) => {
+            panic!("Failed to receive empty packet: {}", e);
+        }
+    }
+}
+
 

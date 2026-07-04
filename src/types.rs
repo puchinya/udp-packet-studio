@@ -9,6 +9,8 @@ pub enum PayloadType {
     EchonetLite,
     Syslog,
     Snmp,
+    Dns,
+    Coap,
 }
 
 pub fn default_payload_type() -> PayloadType {
@@ -22,6 +24,8 @@ pub enum InspectorProtocol {
     EchonetLite,
     Syslog,
     Snmp,
+    Dns,
+    Coap,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -430,7 +434,7 @@ pub fn validate_payload(payload: &str, payload_type: PayloadType) -> Result<Vec<
         PayloadType::Text | PayloadType::Syslog => {
             Ok(payload.as_bytes().to_vec())
         }
-        PayloadType::Hex | PayloadType::EchonetLite | PayloadType::Snmp => {
+        PayloadType::Hex | PayloadType::EchonetLite | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
             let has_invalid_chars = payload.chars().any(|c| {
                 !c.is_ascii_hexdigit()
                     && !c.is_whitespace()
@@ -549,12 +553,24 @@ impl Default for AppTheme {
     }
 }
 
+fn default_dns_port() -> String {
+    "53,5353".to_string()
+}
+
+fn default_coap_port() -> String {
+    "5683".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProtocolConfig {
     pub echonet_lite_port: String,
     pub snmp_agent_port: String,
     pub snmp_trap_port: String,
     pub syslog_port: String,
+    #[serde(default = "default_dns_port")]
+    pub dns_port: String,
+    #[serde(default = "default_coap_port")]
+    pub coap_port: String,
 }
 
 impl Default for ProtocolConfig {
@@ -564,6 +580,8 @@ impl Default for ProtocolConfig {
             snmp_agent_port: "161".to_string(),
             snmp_trap_port: "162".to_string(),
             syslog_port: "514".to_string(),
+            dns_port: "53,5353".to_string(),
+            coap_port: "5683".to_string(),
         }
     }
 }
