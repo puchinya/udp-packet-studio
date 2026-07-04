@@ -62,6 +62,10 @@ settings-reset-confirm-msg = 設定を初期化してもよろしいですか？
 settings-ok = OK
 settings-cancel = キャンセル
 dialog-error-title = エラー
+dialog-format-change-title = フォーマット変更の確認
+dialog-format-change-msg = 現在のペイロードデータを変換できません。続行すると、変更先プロトコルの設定は初期値にリセットされます。クリアして切り替えますか？
+dialog-yes = はい
+dialog-no = いいえ
 
 # Collections View
 collections-new = + 新規作成
@@ -158,6 +162,7 @@ el-err-prefix = ECHONET Lite ビルダーエラー: { $msg }
 # Composer Tab
 composer-dest-addr = 送信先アドレス:
 composer-payload-format = ペイロード形式:
+composer-protocol-label = プロトコル:
 composer-format-text = テキスト (UTF-8)
 composer-format-hex = 16進数 (スペース可)
 composer-payload-content = ペイロード内容:

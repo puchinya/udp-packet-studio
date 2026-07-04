@@ -150,6 +150,16 @@ pub struct SavedConfig {
     pub inspector_protocols_order: Vec<crate::types::InspectorProtocol>,
     #[serde(default)]
     pub preset_ports_order: Vec<crate::types::PresetPortItem>,
+    #[serde(default = "default_protocol_mru")]
+    pub protocol_mru: Vec<String>,
+}
+
+fn default_protocol_mru() -> Vec<String> {
+    vec![
+        "ECHONET Lite".to_string(),
+        "Syslog".to_string(),
+        "SNMP".to_string(),
+    ]
 }
 
 fn config_path() -> Option<std::path::PathBuf> {
@@ -197,6 +207,7 @@ impl Default for SavedConfig {
                 crate::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
                 crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
             ],
+            protocol_mru: default_protocol_mru(),
         }
     }
 }

@@ -6,6 +6,13 @@ use serde::{Serialize, Deserialize};
 pub enum PayloadType {
     Text,
     Hex,
+    EchonetLite,
+    Syslog,
+    Snmp,
+}
+
+pub fn default_payload_type() -> PayloadType {
+    PayloadType::Hex
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +62,7 @@ pub struct PacketDefinition {
     pub name: String,
     pub target_ip: String,
     pub target_port: String,
+    #[serde(default = "default_payload_type")]
     pub payload_type: PayloadType,
     pub payload: String,
 }
@@ -292,12 +300,137 @@ pub fn parse_hex_to_bytes(hex_str: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+pub fn parse_echonet_lite(bytes: &[u8]) -> Option<(String, String, String, usize, Vec<ElBuilderProperty>)> {
+    if bytes.len() < 12 {
+        return None;
+    }
+    let ehd1 = bytes[0];
+    let ehd2 = bytes[1];
+    if ehd1 != 0x10 || ehd2 != 0x81 {
+        return None;
+    }
+    let tid = format!("{:02X}{:02X}", bytes[2], bytes[3]);
+    let seoj = format!("{:02X}{:02X}{:02X}", bytes[4], bytes[5], bytes[6]);
+    let deoj = format!("{:02X}{:02X}{:02X}", bytes[7], bytes[8], bytes[9]);
+    let esv_byte = bytes[10];
+    let opc = bytes[11] as usize;
+    
+    let esv_preset = match esv_byte {
+        0x62 => 0,
+        0x61 => 1,
+        0x60 => 2,
+        0x63 => 3,
+        0x73 => 4,
+        0x7A => 5,
+        0x6E => 6,
+        _ => 0,
+    };
+    
+    let mut properties = Vec::new();
+    let mut offset = 12;
+    for _ in 0..opc {
+        if offset + 2 > bytes.len() {
+            return None;
+        }
+        let epc = format!("{:02X}", bytes[offset]);
+        let pdc = bytes[offset + 1] as usize;
+        offset += 2;
+        if offset + pdc > bytes.len() {
+            return None;
+        }
+        let edt = bytes[offset..offset+pdc].iter().map(|b| format!("{:02X}", b)).collect::<String>();
+        offset += pdc;
+        properties.push(ElBuilderProperty { epc, edt });
+    }
+    
+    Some((tid, seoj, deoj, esv_preset, properties))
+}
+
+pub fn generate_echonet_lite(
+    tid: &str,
+    seoj: &str,
+    deoj: &str,
+    esv_preset: usize,
+    properties: &[ElBuilderProperty],
+) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    bytes.push(0x10);
+    bytes.push(0x81);
+    
+    let tid_clean: String = tid.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if tid_clean.len() != 4 {
+        return Err("TID must be 4 hex characters".to_string());
+    }
+    let tid_bytes = parse_hex_to_bytes(&tid_clean)?;
+    bytes.extend_from_slice(&tid_bytes);
+    
+    let seoj_clean: String = seoj.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if seoj_clean.len() != 6 {
+        return Err("SEOJ must be 6 hex characters".to_string());
+    }
+    let seoj_bytes = parse_hex_to_bytes(&seoj_clean)?;
+    bytes.extend_from_slice(&seoj_bytes);
+    
+    let deoj_clean: String = deoj.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+    if deoj_clean.len() != 6 {
+        return Err("DEOJ must be 6 hex characters".to_string());
+    }
+    let deoj_bytes = parse_hex_to_bytes(&deoj_clean)?;
+    bytes.extend_from_slice(&deoj_bytes);
+    
+    let esv = match esv_preset {
+        0 => 0x62,
+        1 => 0x61,
+        2 => 0x60,
+        3 => 0x63,
+        4 => 0x73,
+        5 => 0x7A,
+        6 => 0x6E,
+        _ => 0x62,
+    };
+    bytes.push(esv);
+    
+    let is_get = esv == 0x62 || esv == 0x63;
+    
+    if properties.is_empty() {
+        return Err("At least one property must be specified".to_string());
+    }
+    
+    bytes.push(properties.len() as u8);
+    
+    for prop in properties {
+        let epc_clean: String = prop.epc.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+        if epc_clean.len() != 2 {
+            return Err("EPC must be 2 hex characters".to_string());
+        }
+        let epc_byte = parse_hex_to_bytes(&epc_clean)?[0];
+        bytes.push(epc_byte);
+        
+        if is_get {
+            bytes.push(0x00);
+        } else {
+            let edt_clean: String = prop.edt.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+            if edt_clean.is_empty() {
+                return Err("EDT cannot be empty".to_string());
+            }
+            if edt_clean.len() % 2 != 0 {
+                return Err("EDT must have an even number of characters".to_string());
+            }
+            let edt_bytes = parse_hex_to_bytes(&edt_clean)?;
+            bytes.push(edt_bytes.len() as u8);
+            bytes.extend_from_slice(&edt_bytes);
+        }
+    }
+    
+    Ok(bytes)
+}
+
 pub fn validate_payload(payload: &str, payload_type: PayloadType) -> Result<Vec<u8>, String> {
     match payload_type {
-        PayloadType::Text => {
+        PayloadType::Text | PayloadType::Syslog => {
             Ok(payload.as_bytes().to_vec())
         }
-        PayloadType::Hex => {
+        PayloadType::Hex | PayloadType::EchonetLite | PayloadType::Snmp => {
             let has_invalid_chars = payload.chars().any(|c| {
                 !c.is_ascii_hexdigit()
                     && !c.is_whitespace()
@@ -439,6 +572,19 @@ impl Default for ProtocolConfig {
 pub struct PresetPortItem {
     pub protocol: String,
     pub port: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingFormatChange {
+    pub request_id: Option<String>,
+    pub from_type: PayloadType,
+    pub to_type: PayloadType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormatChangeResult {
+    Immediate { new_payload: String },
+    Pending(PendingFormatChange),
 }
 
 
