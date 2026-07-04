@@ -502,11 +502,10 @@ impl UdpStudioState {
                                                                         ui.monospace(format!("{}", r.data.len()));
                                                                         ui.separator();
                                                                         ui.label("Data:");
-                                                                        let hex_repr = r.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
-                                                                        let text_repr = String::from_utf8(r.data.clone()).unwrap_or_else(|_| String::new());
-                                                                        if !text_repr.is_empty() && text_repr.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
-                                                                            ui.monospace(format!("{} ({})", hex_repr, text_repr));
+                                                                        if !r.parsed_data.is_empty() {
+                                                                            ui.monospace(&r.parsed_data);
                                                                         } else {
+                                                                            let hex_repr = r.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
                                                                             ui.monospace(hex_repr);
                                                                         }
                                                                     });

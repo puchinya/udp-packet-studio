@@ -22,7 +22,7 @@ impl UdpStudioState {
             egui_i18n::translate_fluent(key, &fluent_args)
         };
 
-        let mut new_selection = self.selected_log_idx;
+        let old_selection = self.selected_log_idx;
         let mut scroll_to_row_idx = None;
 
         let filtered_indices = &self.filtered_indices;
@@ -107,7 +107,6 @@ impl UdpStudioState {
                         self.last_clicked_log_idx = Some(next_idx);
                     }
                     self.sync_selected_log_idx();
-                    new_selection = self.selected_log_idx;
                     scroll_to_row_idx = Some(pos);
                 }
             }
@@ -126,7 +125,7 @@ impl UdpStudioState {
                     self.filtered_indices.clear();
                     self.selected_log_indices.clear();
                     self.last_clicked_log_idx = None;
-                    new_selection = None;
+                    self.selected_log_idx = None;
                 }
 
                 ui.add_space(8.0);
@@ -523,7 +522,6 @@ impl UdpStudioState {
                 self.selected_log_indices.insert(orig_idx);
                 self.last_clicked_log_idx = Some(orig_idx);
                 self.sync_selected_log_idx();
-                new_selection = self.selected_log_idx;
             }
         } else if let Some((row_index, orig_idx)) = clicked_row {
             if is_shift {
@@ -567,13 +565,11 @@ impl UdpStudioState {
                 self.last_clicked_log_idx = Some(orig_idx);
             }
             self.sync_selected_log_idx();
-            new_selection = self.selected_log_idx;
         }
         });
 
-        if self.selected_log_idx != new_selection {
-            self.selected_log_idx = new_selection;
-            if let Some(idx) = new_selection {
+        if old_selection != self.selected_log_idx {
+            if let Some(idx) = self.selected_log_idx {
                 if idx < self.logs.len() {
                     let entry = &self.logs[idx];
                     let src_port = entry.src_port.as_str();
