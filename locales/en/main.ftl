@@ -34,6 +34,7 @@ settings-title = ⚙ Preferences
 settings-tab-general = General
 settings-tab-log-display = Log Display
 settings-tab-log-saving = Log Saving
+settings-tab-protocols = Protocols
 settings-tab-others = Others
 settings-lang-section = Language Settings
 settings-lang-label = Language:
@@ -57,6 +58,13 @@ settings-layout-section = Layout Settings
 settings-reset-layout-btn = Reset Window Layout
 settings-close = Close
 settings-reset = Reset Settings
+settings-proto-title = Protocol Port Settings
+settings-proto-echonet-port = ECHONET Lite Port:
+settings-proto-snmp-agent-port = SNMP Agent Port:
+settings-proto-snmp-trap-port = SNMP Trap Port:
+settings-proto-syslog-port = Syslog Port:
+settings-proto-dns-port = DNS / mDNS Port:
+settings-proto-coap-port = CoAP Port:
 settings-reset-confirm-title = Confirm Reset
 settings-reset-confirm-msg = Are you sure you want to reset all settings? The application will restart automatically.
 settings-ok = OK
@@ -186,6 +194,8 @@ composer-port-preset-section = Presets
 composer-port-preset-echonet = ECHONET Lite : 3610
 composer-port-preset-syslog = Syslog : 514
 composer-port-preset-snmp = SNMP : 161
+composer-port-preset-dns = DNS / mDNS : 53 / 5353
+composer-port-preset-coap = CoAP : 5683
 
 # Log Viewer Tab
 log-btn-clear = 🗑 Clear
@@ -362,6 +372,57 @@ snmp-varbind-oid = OID:
 snmp-varbind-type = Type:
 snmp-varbind-val = Value:
 snmp-btn-generate = Generate SNMP
+
+# DNS & CoAP Helper
+dns-helper-checkbox = 🔍 DNS / mDNS Builder
+coap-helper-checkbox = ⚡ CoAP Builder
+
+dns-version = Query Type:
+dns-tid = Transaction ID:
+dns-flags = Flags:
+dns-qname = Query Name (QNAME):
+dns-qtype = Type (QTYPE):
+dns-qclass = Class (QCLASS):
+dns-btn-generate = Generate DNS Packet
+
+coap-version-lbl = CoAP Version:
+coap-type-lbl = Type:
+coap-code-lbl = Code:
+coap-message-id-lbl = Message ID:
+coap-token-lbl = Token (Hex):
+coap-options-title = Options:
+coap-option-num = Option Number:
+coap-option-val = Option Value:
+coap-option-add = ➕ Add Option
+coap-btn-generate = Generate CoAP Packet
+
+# DNS & CoAP Inspector
+ins-proto-dns = 🔍 DNS / mDNS
+ins-proto-coap = ⚡ CoAP
+
+ins-dns-tid = Transaction ID:
+ins-dns-flags = Flags:
+ins-dns-questions = Questions (QDCOUNT):
+ins-dns-answers = Answers (ANCOUNT):
+ins-dns-authorities = Authorities (NSCOUNT):
+ins-dns-additionals = Additionals (ARCOUNT):
+ins-dns-sec-questions = Questions
+ins-dns-sec-answers = Answers
+ins-dns-sec-authorities = Authoritative Nameservers
+ins-dns-sec-additionals = Additional Records
+ins-dns-err-too-short = ⚠ Packet too short to be a valid DNS frame (min 12 bytes).
+ins-dns-err-malformed = ⚠ Malformed DNS packet or truncated.
+
+ins-coap-ver = Version (Ver):
+ins-coap-type = Type (Type):
+ins-coap-tkl = Token Length (TKL):
+ins-coap-code = Code (Code):
+ins-coap-msgid = Message ID:
+ins-coap-token = Token:
+ins-coap-options = Options:
+ins-coap-payload = Payload:
+ins-coap-err-too-short = ⚠ Packet too short to be a valid CoAP frame (min 4 bytes).
+ins-coap-err-malformed = ⚠ Error parsing CoAP packet.
 
 
 

@@ -34,6 +34,7 @@ settings-title = ⚙ 設定
 settings-tab-general = 一般
 settings-tab-log-display = ログ表示
 settings-tab-log-saving = ログ保存
+settings-tab-protocols = プロトコル
 settings-tab-others = その他
 settings-lang-section = 言語設定
 settings-lang-label = 表示言語:
@@ -57,6 +58,13 @@ settings-layout-section = レイアウト設定
 settings-reset-layout-btn = ウィンドウ・配置の初期化
 settings-close = 閉じる
 settings-reset = 設定を初期化
+settings-proto-title = プロトコルポート設定
+settings-proto-echonet-port = ECHONET Lite ポート番号:
+settings-proto-snmp-agent-port = SNMP エージェントポート:
+settings-proto-snmp-trap-port = SNMP トラップポート:
+settings-proto-syslog-port = Syslog ポート番号:
+settings-proto-dns-port = DNS / mDNS ポート番号:
+settings-proto-coap-port = CoAP ポート番号:
 settings-reset-confirm-title = 初期化の確認
 settings-reset-confirm-msg = 設定を初期化してもよろしいですか？初期化後にアプリは自動的に再起動します。
 settings-ok = OK
@@ -186,6 +194,8 @@ composer-port-preset-section = プリセット
 composer-port-preset-echonet = ECHONET Lite : 3610
 composer-port-preset-syslog = Syslog : 514
 composer-port-preset-snmp = SNMP : 161
+composer-port-preset-dns = DNS / mDNS : 53 / 5353
+composer-port-preset-coap = CoAP : 5683
 
 # Log Viewer Tab
 log-btn-clear = 🗑 クリア
@@ -362,6 +372,57 @@ snmp-varbind-oid = OID:
 snmp-varbind-type = 型:
 snmp-varbind-val = 値:
 snmp-btn-generate = SNMP 生成
+
+# DNS & CoAP Helper
+dns-helper-checkbox = 🔍 DNS / mDNS ビルダー
+coap-helper-checkbox = ⚡ CoAP ビルダー
+
+dns-version = クエリタイプ:
+dns-tid = トランザクション ID:
+dns-flags = フラグ (Flags):
+dns-qname = クエリ名 (QNAME):
+dns-qtype = タイプ (QTYPE):
+dns-qclass = クラス (QCLASS):
+dns-btn-generate = DNSパケット生成
+
+coap-version-lbl = CoAP バージョン:
+coap-type-lbl = タイプ:
+coap-code-lbl = コード (Code):
+coap-message-id-lbl = メッセージ ID:
+coap-token-lbl = トークン (Hex):
+coap-options-title = オプションリスト (Options):
+coap-option-num = 番号:
+coap-option-val = 値:
+coap-option-add = ➕ オプションを追加
+coap-btn-generate = CoAP パケット生成
+
+# DNS & CoAP Inspector
+ins-proto-dns = 🔍 DNS / mDNS
+ins-proto-coap = ⚡ CoAP
+
+ins-dns-tid = トランザクション ID:
+ins-dns-flags = フラグ (Flags):
+ins-dns-questions = 質問数 (QDCOUNT):
+ins-dns-answers = 回答数 (ANCOUNT):
+ins-dns-authorities = 権限数 (NSCOUNT):
+ins-dns-additionals = 追加数 (ARCOUNT):
+ins-dns-sec-questions = 質問 (Questions)
+ins-dns-sec-answers = 回答 (Answers)
+ins-dns-sec-authorities = 権限 (Authoritative Nameservers)
+ins-dns-sec-additionals = 追加情報 (Additional Records)
+ins-dns-err-too-short = ⚠ DNSパケット長が短すぎます (最小 12 バイト)。
+ins-dns-err-malformed = ⚠ DNSパケットが破損しているか、途切れています。
+
+ins-coap-ver = バージョン (Ver):
+ins-coap-type = タイプ (Type):
+ins-coap-tkl = トークン長 (TKL):
+ins-coap-code = コード (Code):
+ins-coap-msgid = メッセージ ID:
+ins-coap-token = トークン (Token):
+ins-coap-options = オプション (Options):
+ins-coap-payload = ペイロード (Payload):
+ins-coap-err-too-short = ⚠ CoAPパケット長が短すぎます (最小 4 バイト)。
+ins-coap-err-malformed = ⚠ CoAPパケットのパース中にエラーが発生しました。
 
 
 

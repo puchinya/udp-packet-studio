@@ -159,6 +159,8 @@ fn default_protocol_mru() -> Vec<String> {
         "ECHONET Lite".to_string(),
         "Syslog".to_string(),
         "SNMP".to_string(),
+        "DNS".to_string(),
+        "CoAP".to_string(),
     ]
 }
 
@@ -278,10 +280,20 @@ impl SavedConfig {
                 crate::types::InspectorProtocol::EchonetLite,
                 crate::types::InspectorProtocol::Syslog,
                 crate::types::InspectorProtocol::Snmp,
+                crate::types::InspectorProtocol::Dns,
+                crate::types::InspectorProtocol::Coap,
             ];
             for p in all_custom_protos {
                 if !cfg.inspector_protocols_order.contains(&p) {
                     cfg.inspector_protocols_order.push(p);
+                    migrated = true;
+                }
+            }
+
+            let default_mru = default_protocol_mru();
+            for proto in default_mru {
+                if !cfg.protocol_mru.contains(&proto) {
+                    cfg.protocol_mru.push(proto);
                     migrated = true;
                 }
             }
@@ -299,6 +311,12 @@ impl SavedConfig {
             }
             for p in cfg.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
                 current_items.push(crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: p.to_string() });
+            }
+            for p in cfg.protocol_config.dns_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "DNS".to_string(), port: p.to_string() });
+            }
+            for p in cfg.protocol_config.coap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                current_items.push(crate::types::PresetPortItem { protocol: "CoAP".to_string(), port: p.to_string() });
             }
 
             let mut new_order = Vec::new();

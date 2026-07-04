@@ -400,6 +400,237 @@ impl UdpStudioState {
                                         }
                                     }
                                 }
+                                InspectorProtocol::Dns => {
+                                    match crate::dns::parse_dns(&entry.data) {
+                                        Ok(dns) => {
+                                            egui::Grid::new("dns_inspector_grid")
+                                                .num_columns(2)
+                                                .spacing([12.0, 6.0])
+                                                .show(ui, |ui| {
+                                                    ui.label(tr("ins-dns-tid"));
+                                                    ui.monospace(format!("0x{:04X} ({})", dns.transaction_id, dns.transaction_id));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-dns-flags"));
+                                                    ui.monospace(format!("0x{:04X}", dns.flags));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-dns-qdcount"));
+                                                    ui.monospace(format!("{}", dns.questions.len()));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-dns-ancount"));
+                                                    ui.monospace(format!("{}", dns.answers.len()));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-dns-nscount"));
+                                                    ui.monospace(format!("{}", dns.authorities.len()));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-dns-arcount"));
+                                                    ui.monospace(format!("{}", dns.additionals.len()));
+                                                    ui.end_row();
+                                                });
+
+                                            if !dns.questions.is_empty() {
+                                                ui.add_space(10.0);
+                                                ui.strong(tr("ins-dns-sec-queries"));
+                                                ui.add_space(4.0);
+
+                                                for (i, q) in dns.questions.iter().enumerate() {
+                                                    egui::Frame::NONE
+                                                        .fill(ui.visuals().widgets.inactive.bg_fill)
+                                                        .corner_radius(egui::CornerRadius::same(4))
+                                                        .inner_margin(egui::Margin::symmetric(10, 8))
+                                                        .show(ui, |ui| {
+                                                            ui.vertical(|ui| {
+                                                                ui.horizontal(|ui| {
+                                                                    ui.strong(format!("#{}:", i + 1));
+                                                                    ui.label("Name:");
+                                                                    ui.monospace(&q.name);
+                                                                });
+                                                                ui.add_space(2.0);
+                                                                ui.horizontal(|ui| {
+                                                                    ui.label("Type:");
+                                                                    ui.monospace(format!("{} ({})", crate::dns::qtype_name(q.qtype), q.qtype));
+                                                                    ui.separator();
+                                                                    ui.label("Class:");
+                                                                    ui.monospace(format!("{} (0x{:04X})", crate::dns::qclass_name(q.qclass), q.qclass));
+                                                                });
+                                                            });
+                                                        });
+                                                    ui.add_space(6.0);
+                                                }
+                                            }
+
+                                            let mut render_records = |title: &str, records: &[crate::dns::DnsRecord]| {
+                                                if !records.is_empty() {
+                                                    ui.add_space(10.0);
+                                                    ui.strong(title);
+                                                    ui.add_space(4.0);
+
+                                                    for (i, r) in records.iter().enumerate() {
+                                                        egui::Frame::NONE
+                                                            .fill(ui.visuals().widgets.inactive.bg_fill)
+                                                            .corner_radius(egui::CornerRadius::same(4))
+                                                            .inner_margin(egui::Margin::symmetric(10, 8))
+                                                            .show(ui, |ui| {
+                                                                ui.vertical(|ui| {
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.strong(format!("#{}:", i + 1));
+                                                                        ui.label("Name:");
+                                                                        ui.monospace(&r.name);
+                                                                    });
+                                                                    ui.add_space(2.0);
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.label("Type:");
+                                                                        ui.monospace(format!("{} ({})", crate::dns::qtype_name(r.rtype), r.rtype));
+                                                                        ui.separator();
+                                                                        ui.label("Class:");
+                                                                        ui.monospace(format!("{} (0x{:04X})", crate::dns::qclass_name(r.rclass), r.rclass));
+                                                                        ui.separator();
+                                                                        ui.label("TTL:");
+                                                                        ui.monospace(format!("{}", r.ttl));
+                                                                    });
+                                                                    ui.add_space(2.0);
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.label("Len:");
+                                                                        ui.monospace(format!("{}", r.data.len()));
+                                                                        ui.separator();
+                                                                        ui.label("Data:");
+                                                                        let hex_repr = r.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                                                                        let text_repr = String::from_utf8(r.data.clone()).unwrap_or_else(|_| String::new());
+                                                                        if !text_repr.is_empty() && text_repr.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                                                                            ui.monospace(format!("{} ({})", hex_repr, text_repr));
+                                                                        } else {
+                                                                            ui.monospace(hex_repr);
+                                                                        }
+                                                                    });
+                                                                });
+                                                            });
+                                                        ui.add_space(6.0);
+                                                    }
+                                                }
+                                            };
+
+                                            render_records(&tr("ins-dns-sec-answers"), &dns.answers);
+                                            render_records(&tr("ins-dns-sec-authorities"), &dns.authorities);
+                                            render_records(&tr("ins-dns-sec-additionals"), &dns.additionals);
+                                        }
+                                        Err(err_msg) => {
+                                            ui.colored_label(
+                                                egui::Color32::from_rgb(255, 100, 100),
+                                                format!("Failed to parse DNS packet: {}", err_msg)
+                                            );
+                                        }
+                                    }
+                                }
+                                InspectorProtocol::Coap => {
+                                    match crate::coap::parse_coap(&entry.data) {
+                                        Ok(coap) => {
+                                            egui::Grid::new("coap_inspector_grid")
+                                                .num_columns(2)
+                                                .spacing([12.0, 6.0])
+                                                .show(ui, |ui| {
+                                                    ui.label(tr("ins-coap-version"));
+                                                    ui.monospace(format!("{}", coap.version));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-coap-type"));
+                                                    let type_name = match coap.mtype {
+                                                        0 => "Confirmable (CON)",
+                                                        1 => "Non-confirmable (NON)",
+                                                        2 => "Acknowledgement (ACK)",
+                                                        3 => "Reset (RST)",
+                                                        _ => "Unknown",
+                                                    };
+                                                    ui.monospace(format!("{} ({})", type_name, coap.mtype));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-coap-code"));
+                                                    ui.monospace(format!("{} ({})", crate::coap::code_name(coap.code), coap.code));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-coap-message-id"));
+                                                    ui.monospace(format!("{}", coap.message_id));
+                                                    ui.end_row();
+
+                                                    ui.label(tr("ins-coap-token"));
+                                                    let token_hex = coap.token.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                                                    ui.monospace(token_hex);
+                                                    ui.end_row();
+                                                });
+
+                                            if !coap.options.is_empty() {
+                                                ui.add_space(10.0);
+                                                ui.strong(tr("ins-coap-sec-options"));
+                                                ui.add_space(4.0);
+
+                                                for (i, opt) in coap.options.iter().enumerate() {
+                                                    egui::Frame::NONE
+                                                        .fill(ui.visuals().widgets.inactive.bg_fill)
+                                                        .corner_radius(egui::CornerRadius::same(4))
+                                                        .inner_margin(egui::Margin::symmetric(10, 8))
+                                                        .show(ui, |ui| {
+                                                            ui.vertical(|ui| {
+                                                                ui.horizontal(|ui| {
+                                                                    ui.strong(format!("#{}:", i + 1));
+                                                                    ui.label("Option Number:");
+                                                                    ui.monospace(format!("{} ({})", crate::coap::option_name(opt.number), opt.number));
+                                                                });
+                                                                ui.add_space(2.0);
+                                                                ui.horizontal(|ui| {
+                                                                    ui.label("Length:");
+                                                                    ui.monospace(format!("{}", opt.value.len()));
+                                                                    ui.separator();
+                                                                    ui.label("Value:");
+                                                                    
+                                                                    let hex_val = opt.value.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                                                                    let utf8_val = String::from_utf8(opt.value.clone()).unwrap_or_default();
+                                                                    if !utf8_val.is_empty() && utf8_val.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                                                                        ui.monospace(format!("{} ({})", hex_val, utf8_val));
+                                                                    } else {
+                                                                        ui.monospace(hex_val);
+                                                                    }
+                                                                });
+                                                            });
+                                                        });
+                                                    ui.add_space(6.0);
+                                                }
+                                            }
+
+                                            if !coap.payload.is_empty() {
+                                                ui.add_space(10.0);
+                                                ui.strong(tr("ins-coap-sec-payload"));
+                                                ui.add_space(4.0);
+
+                                                let hex_payload = coap.payload.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                                                let utf8_payload = String::from_utf8(coap.payload.clone()).unwrap_or_default();
+
+                                                egui::Grid::new("coap_payload_grid")
+                                                    .num_columns(2)
+                                                    .spacing([12.0, 6.0])
+                                                    .show(ui, |ui| {
+                                                        ui.label("Hex:");
+                                                        ui.monospace(hex_payload);
+                                                        ui.end_row();
+
+                                                        if !utf8_payload.is_empty() && utf8_payload.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace() || c == '\n' || c == '\r') {
+                                                            ui.label("Text:");
+                                                            ui.monospace(utf8_payload);
+                                                            ui.end_row();
+                                                        }
+                                                    });
+                                            }
+                                        }
+                                        Err(err_msg) => {
+                                            ui.colored_label(
+                                                egui::Color32::from_rgb(255, 100, 100),
+                                                format!("Failed to parse CoAP packet: {}", err_msg)
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         });
                 }

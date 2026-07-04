@@ -583,6 +583,8 @@ impl UdpStudioState {
                     let syslog_ports: Vec<&str> = self.protocol_config.syslog_port.split(',').map(|s| s.trim()).collect();
                     let snmp_agent_ports: Vec<&str> = self.protocol_config.snmp_agent_port.split(',').map(|s| s.trim()).collect();
                     let snmp_trap_ports: Vec<&str> = self.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).collect();
+                    let dns_ports: Vec<&str> = self.protocol_config.dns_port.split(',').map(|s| s.trim()).collect();
+                    let coap_ports: Vec<&str> = self.protocol_config.coap_port.split(',').map(|s| s.trim()).collect();
 
                     if el_ports.contains(&src_port) || el_ports.contains(&dest_port) {
                         self.inspector_protocol = crate::types::InspectorProtocol::EchonetLite;
@@ -595,6 +597,12 @@ impl UdpStudioState {
                     {
                         self.inspector_protocol = crate::types::InspectorProtocol::Snmp;
                         self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Snmp);
+                    } else if dns_ports.contains(&src_port) || dns_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Dns;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Dns);
+                    } else if coap_ports.contains(&src_port) || coap_ports.contains(&dest_port) {
+                        self.inspector_protocol = crate::types::InspectorProtocol::Coap;
+                        self.record_inspector_protocol_usage(crate::types::InspectorProtocol::Coap);
                     } else {
                         self.inspector_protocol = crate::types::InspectorProtocol::Raw;
                     }
