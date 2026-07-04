@@ -498,10 +498,6 @@ impl UdpStudioState {
                                          ip_chosen = Some("224.0.0.251".to_string());
                                          ui.close();
                                      }
-                                     if ui.button("ff02::fb  (mDNS IPv6)").clicked() {
-                                         ip_chosen = Some("ff02::fb".to_string());
-                                         ui.close();
-                                     }
                                  });
 
                                 // NIF broadcast addresses
