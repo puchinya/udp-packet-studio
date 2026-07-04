@@ -378,7 +378,7 @@ impl UdpStudioState {
                                     }
                                 };
 
-                                let (direction_text, color) = match entry.direction {
+                                let (direction_text, mut color) = match entry.direction {
                                     LogDirection::Sent => {
                                         let c = if is_dark {
                                             egui::Color32::from_rgb(100, 220, 100)
@@ -412,6 +412,15 @@ impl UdpStudioState {
                                         ("ERROR", c)
                                     }
                                 };
+
+                                if is_selected && !is_dark {
+                                    color = match entry.direction {
+                                        LogDirection::Sent => egui::Color32::from_rgb(180, 255, 180),
+                                        LogDirection::Received => egui::Color32::from_rgb(200, 230, 255),
+                                        LogDirection::SystemInfo => egui::Color32::from_rgb(240, 240, 240),
+                                        LogDirection::SystemError => egui::Color32::from_rgb(255, 200, 200),
+                                    };
+                                }
 
                                 let time_str = entry.timestamp.format("%H:%M:%S.%3f").to_string();
                                 let preview_truncated = entry.get_preview(self.max_display_data_bytes);
