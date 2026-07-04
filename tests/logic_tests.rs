@@ -25,6 +25,8 @@ fn make_test_state() -> UdpStudioState {
         composer_name: String::new(),
         logs: Vec::new(),
         selected_log_idx: None,
+        selected_log_indices: std::collections::BTreeSet::new(),
+        last_clicked_log_idx: None,
         filter_text: String::new(),
         filter_input: String::new(),
         filter_history: Vec::new(),

@@ -27,21 +27,32 @@ impl UdpStudioState {
 
         let filtered_indices = &self.filtered_indices;
 
+        // Copy shortcut (Ctrl+C / Cmd+C)
+        if !ui.ctx().egui_wants_keyboard_input() {
+            let copy_shortcut = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::C));
+            if copy_shortcut {
+                self.copy_selected_logs_to_clipboard(ui, LogExportFormat::Csv);
+            }
+        }
+
         // Handle keyboard navigation (ArrowUp / ArrowDown)
         if !filtered_indices.is_empty() && !ui.ctx().egui_wants_keyboard_input() {
             let mut key_up = false;
             let mut key_down = false;
+            let mut shift = false;
             ui.input(|i| {
                 if i.key_pressed(egui::Key::ArrowUp) {
                     key_up = true;
+                    shift = i.modifiers.shift;
                 }
                 if i.key_pressed(egui::Key::ArrowDown) {
                     key_down = true;
+                    shift = i.modifiers.shift;
                 }
             });
 
             if key_up || key_down {
-                let current_filtered_pos = self.selected_log_idx.and_then(|idx| {
+                let current_filtered_pos = self.last_clicked_log_idx.and_then(|idx| {
                     filtered_indices.iter().position(|&x| x == idx)
                 });
 
@@ -71,7 +82,32 @@ impl UdpStudioState {
                 };
 
                 if let Some(pos) = next_filtered_pos {
-                    new_selection = Some(filtered_indices[pos]);
+                    let next_idx = filtered_indices[pos];
+                    if shift {
+                        if let Some(last_clicked) = self.last_clicked_log_idx {
+                            let last_clicked_row = filtered_indices.iter().position(|&x| x == last_clicked);
+                            if let Some(start_row) = last_clicked_row {
+                                let end_row = pos;
+                                let r_start = start_row.min(end_row);
+                                let r_end = start_row.max(end_row);
+                                self.selected_log_indices.clear();
+                                for r in r_start..=r_end {
+                                    if r < filtered_indices.len() {
+                                        self.selected_log_indices.insert(filtered_indices[r]);
+                                    }
+                                }
+                            }
+                        } else {
+                            self.selected_log_indices.insert(next_idx);
+                            self.last_clicked_log_idx = Some(next_idx);
+                        }
+                    } else {
+                        self.selected_log_indices.clear();
+                        self.selected_log_indices.insert(next_idx);
+                        self.last_clicked_log_idx = Some(next_idx);
+                    }
+                    self.sync_selected_log_idx();
+                    new_selection = self.selected_log_idx;
                     scroll_to_row_idx = Some(pos);
                 }
             }
@@ -88,6 +124,8 @@ impl UdpStudioState {
                 if ui.button(tr("log-btn-clear")).clicked() {
                     self.logs.clear();
                     self.filtered_indices.clear();
+                    self.selected_log_indices.clear();
+                    self.last_clicked_log_idx = None;
                     new_selection = None;
                 }
 
@@ -277,13 +315,17 @@ impl UdpStudioState {
 
             ui.separator();
 
-            let filtered_indices = &self.filtered_indices;
+            let filtered_indices = self.filtered_indices.clone();
+            let is_shift = ui.input(|i| i.modifiers.shift);
+            let is_cmd_ctrl = ui.input(|i| i.modifiers.command);
 
             let remaining_height = ui.available_height();
-            ui.allocate_ui_with_layout(
+            let (clicked_row, right_clicked_row) = ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), remaining_height),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
+                    let mut clicked_row = None;
+                    let mut right_clicked_row = None;
                     let is_dark = self.is_dark_theme(ui.ctx());
                     let mut table = TableBuilder::new(ui)
                         .striped(true)
@@ -324,7 +366,18 @@ impl UdpStudioState {
                                 let row_index = row.index();
                                 let orig_idx = filtered_indices[row_index];
                                 let entry = &self.logs[orig_idx];
-                                let is_selected = Some(orig_idx) == self.selected_log_idx;
+                                let is_selected = self.selected_log_indices.contains(&orig_idx);
+
+                                let show_context_menu = |ui: &mut egui::Ui| {
+                                    if ui.button(tr("log-ctx-copy-csv")).clicked() {
+                                        self.copy_selected_logs_to_clipboard(ui, LogExportFormat::Csv);
+                                        ui.close();
+                                    }
+                                    if ui.button(tr("log-ctx-copy-json")).clicked() {
+                                        self.copy_selected_logs_to_clipboard(ui, LogExportFormat::Json);
+                                        ui.close();
+                                    }
+                                };
 
                                 let (direction_text, color) = match entry.direction {
                                     LogDirection::Sent => {
@@ -372,6 +425,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(format!("#{}", orig_idx + 1)).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -379,6 +433,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&time_str).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -386,6 +441,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(direction_text).color(color);
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -393,6 +449,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&entry.src_ip).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -400,6 +457,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&entry.src_port).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -407,6 +465,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&entry.dest_ip).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -414,6 +473,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&entry.dest_port).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -421,6 +481,7 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(format!("{} B", entry.data.len())).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
@@ -428,19 +489,86 @@ impl UdpStudioState {
                                 row.col(|ui| {
                                     let text = egui::RichText::new(&preview_truncated).monospace();
                                     let res = ui.add(egui::Button::selectable(is_selected, text).frame(false));
+                                    res.context_menu(|ui| show_context_menu(ui));
                                     if res.clicked() {
                                         clicked = true;
                                     }
                                 });
 
-                                // Select row if the row itself or any cell inside it is clicked
-                                if clicked || row.response().clicked() {
-                                    new_selection = Some(orig_idx);
+                                // Handle click events (left and right click)
+                                let row_response = row.response();
+                                
+                                // Right-click logic
+                                if row_response.secondary_clicked() {
+                                    right_clicked_row = Some(orig_idx);
                                 }
+
+                                // Left-click logic
+                                if clicked || (row_response.clicked() && !row_response.secondary_clicked()) {
+                                    clicked_row = Some((row_index, orig_idx));
+                                }
+
+                                row_response.context_menu(|ui| show_context_menu(ui));
                             });
                         });
+                    (clicked_row, right_clicked_row)
                 }
-            );
+            ).inner;
+
+        // Apply selection logic after table ends to satisfy borrow checker (Deferred Mutation Pattern)
+        if let Some(orig_idx) = right_clicked_row {
+            let is_selected = self.selected_log_indices.contains(&orig_idx);
+            if !is_selected {
+                self.selected_log_indices.clear();
+                self.selected_log_indices.insert(orig_idx);
+                self.last_clicked_log_idx = Some(orig_idx);
+                self.sync_selected_log_idx();
+                new_selection = self.selected_log_idx;
+            }
+        } else if let Some((row_index, orig_idx)) = clicked_row {
+            if is_shift {
+                if let Some(last_clicked) = self.last_clicked_log_idx {
+                    let last_clicked_row = filtered_indices.iter().position(|&x| x == last_clicked);
+                    if let Some(start_row) = last_clicked_row {
+                        let end_row = row_index;
+                        let r_start = start_row.min(end_row);
+                        let r_end = start_row.max(end_row);
+                        if !is_cmd_ctrl {
+                            self.selected_log_indices.clear();
+                        }
+                        for r in r_start..=r_end {
+                            if r < filtered_indices.len() {
+                                self.selected_log_indices.insert(filtered_indices[r]);
+                            }
+                        }
+                    } else {
+                        if !is_cmd_ctrl {
+                            self.selected_log_indices.clear();
+                        }
+                        self.selected_log_indices.insert(orig_idx);
+                    }
+                } else {
+                    if !is_cmd_ctrl {
+                        self.selected_log_indices.clear();
+                    }
+                    self.selected_log_indices.insert(orig_idx);
+                }
+                self.last_clicked_log_idx = Some(orig_idx);
+            } else if is_cmd_ctrl {
+                if self.selected_log_indices.contains(&orig_idx) {
+                    self.selected_log_indices.remove(&orig_idx);
+                } else {
+                    self.selected_log_indices.insert(orig_idx);
+                }
+                self.last_clicked_log_idx = Some(orig_idx);
+            } else {
+                self.selected_log_indices.clear();
+                self.selected_log_indices.insert(orig_idx);
+                self.last_clicked_log_idx = Some(orig_idx);
+            }
+            self.sync_selected_log_idx();
+            new_selection = self.selected_log_idx;
+        }
         });
 
         if self.selected_log_idx != new_selection {
@@ -472,6 +600,50 @@ impl UdpStudioState {
                     }
                 }
             }
+        }
+    }
+
+    fn copy_selected_logs_to_clipboard(&self, ui: &mut egui::Ui, format: LogExportFormat) {
+        if self.selected_log_indices.is_empty() {
+            return;
+        }
+
+        let content = match format {
+            LogExportFormat::Csv => {
+                let mut csv_content = String::new();
+                csv_content.push_str("No,Timestamp,Direction,Src IP,Src Port,Dest IP,Dest Port,Length,DataHex,DataText\n");
+                for &orig_idx in &self.selected_log_indices {
+                    if let Some(entry) = self.logs.get(orig_idx) {
+                        let time_str = entry.timestamp.format("%Y-%m-%d %H:%M:%S.%3f").to_string();
+                        let dir_str = match entry.direction {
+                            LogDirection::Sent => "SENT",
+                            LogDirection::Received => "RECV",
+                            LogDirection::SystemInfo => "INFO",
+                            LogDirection::SystemError => "ERROR",
+                        };
+                        let len_str = entry.data.len().to_string();
+                        let hex_str = entry.data.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                        let plain_str = String::from_utf8_lossy(&entry.data).replace('\n', " ").replace('"', "\"\"");
+                        csv_content.push_str(&format!("{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{},\"{}\",\"{}\"\n", 
+                            orig_idx + 1, time_str, dir_str, entry.src_ip, entry.src_port, entry.dest_ip, entry.dest_port, len_str, hex_str, plain_str));
+                    }
+                }
+                csv_content
+            }
+            LogExportFormat::Json => {
+                let selected_entries: Vec<&LogEntry> = self.selected_log_indices.iter()
+                    .filter_map(|&idx| self.logs.get(idx))
+                    .collect();
+                match serde_json::to_string_pretty(&selected_entries) {
+                    Ok(json_str) => json_str,
+                    Err(e) => format!("JSON Serialization Error: {}", e),
+                }
+            }
+            _ => String::new(),
+        };
+
+        if !content.is_empty() {
+            ui.ctx().copy_text(content);
         }
     }
 }
