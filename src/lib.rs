@@ -1202,7 +1202,12 @@ impl UdpStudioState {
             ui.add_space(5.0);
 
             if is_listening {
-                if ui.add(egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
+                let stop_color = if self.is_dark_theme(ui.ctx()) {
+                    egui::Color32::from_rgb(255, 100, 100)
+                } else {
+                    egui::Color32::from_rgb(211, 47, 47)
+                };
+                if ui.add(egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-stop")).color(stop_color))).clicked() {
                     self.udp_worker.send(UdpCommand::Unbind { id: id.clone() });
                 }
             } else {
@@ -1212,7 +1217,14 @@ impl UdpStudioState {
                 };
                 let bind_btn = ui.add_enabled(
                     is_port_valid,
-                    egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
+                    {
+                        let bind_color = if self.is_dark_theme(ui.ctx()) {
+                            egui::Color32::from_rgb(100, 255, 100)
+                        } else {
+                            egui::Color32::from_rgb(46, 125, 50)
+                        };
+                        egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-bind")).color(bind_color))
+                    }
                 );
                 if bind_btn.clicked() {
                     self.sockets[socket_idx].error = None;
@@ -2186,8 +2198,25 @@ impl eframe::App for MainApp {
                                 (false, None)
                             };
 
+                            let is_dark_status = self.state.is_dark_theme(ui.ctx());
+                            let status_active_color = if is_dark_status {
+                                egui::Color32::from_rgb(100, 255, 100)
+                            } else {
+                                egui::Color32::from_rgb(46, 125, 50)
+                            };
+                            let status_offline_color = if is_dark_status {
+                                egui::Color32::from_rgb(255, 90, 90)
+                            } else {
+                                egui::Color32::from_rgb(211, 47, 47)
+                            };
+                            let status_broadcast_color = if is_dark_status {
+                                egui::Color32::from_rgb(140, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(25, 118, 210)
+                            };
+
                             if is_listening {
-                                ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
+                                ui.colored_label(status_active_color, self.state.tr("titlebar-status-active"));
                                 if let Some(ref addr) = bound_addr {
                                     let mut args = std::collections::HashMap::new();
                                     args.insert(std::borrow::Cow::Borrowed("addr"), addr.clone().into());
@@ -2196,9 +2225,9 @@ impl eframe::App for MainApp {
                                 ui.add_space(10.0);
                                 ui.separator();
                                 ui.add_space(10.0);
-                                ui.colored_label(egui::Color32::from_rgb(140, 200, 255), self.state.tr("statusbar-broadcast"));
+                                ui.colored_label(status_broadcast_color, self.state.tr("statusbar-broadcast"));
                             } else {
-                                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
+                                ui.colored_label(status_offline_color, self.state.tr("titlebar-status-offline"));
                                 ui.label(self.state.tr("statusbar-not-bound"));
                             }
                             
@@ -2214,7 +2243,7 @@ impl eframe::App for MainApp {
                                 self.state.tr("statusbar-auto-save-disabled")
                             };
                             let auto_save_color = if self.state.auto_save_enabled {
-                                egui::Color32::from_rgb(100, 255, 100)
+                                status_active_color
                             } else {
                                 egui::Color32::from_rgb(150, 150, 150)
                             };
