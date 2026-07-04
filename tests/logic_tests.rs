@@ -522,3 +522,80 @@ fn test_udp_worker_unreachable_port_continuation() {
     assert!(got_received, "Socket should still be receiving packets after an unreachable target send");
 }
 
+#[test]
+fn test_udp_worker_empty_packet_send() {
+    use std::sync::mpsc::channel;
+    use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
+    use std::time::Duration;
+    use std::net::UdpSocket;
+    use eframe::egui;
+
+    let (tx_event, rx_event) = channel();
+    let ctx = egui::Context::default();
+    let worker = UdpWorker::spawn(tx_event, ctx);
+
+    // Bind local receiver socket
+    let receiver = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let receiver_addr = receiver.local_addr().unwrap();
+
+    // Bind worker socket
+    let socket_id = "test-empty-socket".to_string();
+    worker.send(UdpCommand::Bind {
+        id: socket_id.clone(),
+        addr: "127.0.0.1:0".to_string(),
+    });
+
+    // Wait for the socket to bind and get its ID
+    let mut bound = false;
+    for _ in 0..100 {
+        if let Ok(UdpEvent::Bound { id, .. }) = rx_event.recv_timeout(Duration::from_millis(10)) {
+            if id == socket_id {
+                bound = true;
+                break;
+            }
+        }
+    }
+    assert!(bound);
+
+    // Send empty (0-byte) packet to the receiver socket
+    worker.send(UdpCommand::Send {
+        id: socket_id.clone(),
+        target: receiver_addr.to_string(),
+        data: vec![],
+    });
+
+    // Wait for Sent event (with no Error)
+    let mut sent = false;
+    for _ in 0..100 {
+        match rx_event.recv_timeout(Duration::from_millis(10)) {
+            Ok(UdpEvent::Sent { id, data, .. }) => {
+                if id == socket_id {
+                    assert!(data.is_empty());
+                    sent = true;
+                    break;
+                }
+            }
+            Ok(UdpEvent::Error { id, err }) => {
+                if id == socket_id {
+                    panic!("Empty packet send failed with error: {}", err);
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(sent, "UdpEvent::Sent should be received");
+
+    // Verify receiver socket actually receives a 0-byte packet
+    let mut buf = [0u8; 10];
+    receiver.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
+    match receiver.recv_from(&mut buf) {
+        Ok((bytes_recvd, _src)) => {
+            assert_eq!(bytes_recvd, 0);
+        }
+        Err(e) => {
+            panic!("Failed to receive empty packet: {}", e);
+        }
+    }
+}
+
+
