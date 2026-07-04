@@ -549,20 +549,10 @@ impl UdpStudioState {
                                 ui.set_min_width(150.0);
                                 ui.menu_button(tr("composer-port-preset-section"), |ui| {
                                     for item in &self.preset_ports_order {
-                                        let key = match item.protocol.as_str() {
-                                            "ECHONET Lite" => "composer-port-preset-echonet",
-                                            "Syslog" => "composer-port-preset-syslog",
-                                            "SNMP Agent" => "composer-port-preset-snmp-agent",
-                                            "SNMP Trap" => "composer-port-preset-snmp-trap",
-                                            _ => "",
-                                        };
-                                        if !key.is_empty() {
-                                            let mut args = std::collections::HashMap::new();
-                                            args.insert(std::borrow::Cow::Borrowed("port"), item.port.clone().into());
-                                            if ui.button(tr_args(key, &args)).clicked() {
-                                                port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
-                                                ui.close();
-                                            }
+                                        let label = format!("{} : {}", item.protocol, item.port);
+                                        if ui.button(&label).clicked() {
+                                            port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
+                                            ui.close();
                                         }
                                     }
                                 });

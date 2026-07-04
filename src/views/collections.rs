@@ -380,9 +380,12 @@ impl UdpStudioState {
                                 ui.menu_button("▾", |ui| {
                                     ui.set_min_width(150.0);
                                     ui.menu_button(tr("composer-port-preset-section"), |ui| {
-                                        if ui.button(tr("composer-port-preset-echonet")).clicked() {
-                                            port_chosen = Some("3610".to_string());
-                                            ui.close();
+                                        for item in &self.preset_ports_order {
+                                            let label = format!("{} : {}", item.protocol, item.port);
+                                            if ui.button(&label).clicked() {
+                                                port_chosen = Some(item.port.clone());
+                                                ui.close();
+                                            }
                                         }
                                     });
                                     if !self.composer_port_history.is_empty() {
