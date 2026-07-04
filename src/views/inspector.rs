@@ -30,7 +30,9 @@ impl UdpStudioState {
         };
 
         ui.vertical(|ui| {
-            if let Some(idx) = self.selected_log_idx {
+            if self.selected_log_indices.len() > 1 {
+                // Do not display inspector if multiple items are selected (Wireshark-like behavior)
+            } else if let Some(idx) = self.selected_log_idx {
                 if idx < self.logs.len() {
                     let entry = &self.logs[idx];
                     

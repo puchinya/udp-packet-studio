@@ -56,6 +56,8 @@ pub struct UdpStudioState {
     // Logs tab inputs
     pub logs: Vec<LogEntry>,
     pub selected_log_idx: Option<usize>,
+    pub selected_log_indices: std::collections::BTreeSet<usize>,
+    pub last_clicked_log_idx: Option<usize>,
     pub filter_text: String,
     pub filter_input: String,
     pub filter_history: Vec<String>,
@@ -365,13 +367,34 @@ impl UdpStudioState {
         if self.logs.len() > max_lines {
             let remove_count = self.logs.len() - max_lines;
             self.logs.drain(0..remove_count);
-            if let Some(idx) = self.selected_log_idx {
+
+            self.selected_log_indices = self.selected_log_indices.iter()
+                .filter_map(|&idx| {
+                    if idx >= remove_count {
+                        Some(idx - remove_count)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if let Some(idx) = self.last_clicked_log_idx {
                 if idx < remove_count {
-                    self.selected_log_idx = None;
+                    self.last_clicked_log_idx = None;
                 } else {
-                    self.selected_log_idx = Some(idx - remove_count);
+                    self.last_clicked_log_idx = Some(idx - remove_count);
                 }
             }
+
+            self.sync_selected_log_idx();
+        }
+    }
+
+    pub fn sync_selected_log_idx(&mut self) {
+        if self.selected_log_indices.len() == 1 {
+            self.selected_log_idx = self.selected_log_indices.iter().next().copied();
+        } else {
+            self.selected_log_idx = None;
         }
     }
 
@@ -969,6 +992,8 @@ impl MainApp {
             composer_name: String::new(),
             logs: Vec::new(),
             selected_log_idx: None,
+            selected_log_indices: std::collections::BTreeSet::new(),
+            last_clicked_log_idx: None,
             filter_text: String::new(),
             filter_input: String::new(),
             filter_history: Vec::new(),

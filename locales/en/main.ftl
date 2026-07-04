@@ -184,6 +184,8 @@ composer-port-preset-snmp = SNMP : 161
 
 # Log Viewer Tab
 log-btn-clear = 🗑 Clear
+log-ctx-copy-csv = Copy as CSV
+log-ctx-copy-json = Copy as JSON
 log-btn-save = 💾 Save Logs
 log-btn-save-tip = Export logs to selected format
 log-checkbox-autoscroll = Auto-scroll

@@ -75,8 +75,6 @@ fn default_socket_addr() -> SocketAddr {
 pub struct LogEntry {
     pub timestamp: chrono::DateTime<Local>,
     pub direction: LogDirection,
-    pub ip: String,
-    pub port: String,
     #[serde(skip, default = "default_socket_addr")]
     pub address: SocketAddr,
     #[serde(skip)]
@@ -110,11 +108,6 @@ impl LogEntry {
         data: Vec<u8>,
     ) -> Self {
         let address_str = address.to_string();
-        let (ip, port) = if direction == LogDirection::SystemInfo || direction == LogDirection::SystemError {
-            ("-".to_string(), "-".to_string())
-        } else {
-            (address.ip().to_string(), address.port().to_string())
-        };
         let (local_ip, local_port) = match local_addr {
             Some(addr) => (Some(addr.ip().to_string()), Some(addr.port().to_string())),
             None => (None, None),
@@ -180,8 +173,6 @@ impl LogEntry {
         Self {
             timestamp,
             direction,
-            ip,
-            port,
             address,
             address_str,
             data,
