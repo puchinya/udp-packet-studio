@@ -1322,7 +1322,27 @@ impl UdpStudioState {
 
                     // Query Name (QNAME)
                     ui.label(tr("dns-qname"));
-                    ui.text_edit_singleline(dns_qname);
+                    ui.horizontal(|ui| {
+                        ui.text_edit_singleline(dns_qname);
+                        ui.menu_button("▾", |ui| {
+                            if ui.button("_services._dns-sd._udp.local  (mDNS Service Discovery)").clicked() {
+                                *dns_qname = "_services._dns-sd._udp.local".to_string();
+                                *dns_qtype = 12; // PTR
+                                *dns_flags = 0x0000;
+                                ui.close();
+                            }
+                            if ui.button("local  (mDNS Root)").clicked() {
+                                *dns_qname = "local".to_string();
+                                ui.close();
+                            }
+                            if ui.button("google.com  (DNS Sample)").clicked() {
+                                *dns_qname = "google.com".to_string();
+                                *dns_qtype = 1; // A
+                                *dns_flags = 0x0100; // Standard Query
+                                ui.close();
+                            }
+                        });
+                    });
                     ui.end_row();
 
                     // Query Type (QTYPE)
