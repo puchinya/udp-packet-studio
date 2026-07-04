@@ -549,7 +549,41 @@ impl UdpStudioState {
                 let mut options_bytes = Vec::new();
                 for opt in options_state {
                     let opt_num = opt.number.trim().parse::<u16>().map_err(|e| format!("Invalid Option Number: {}", e))?;
-                    let opt_val = parse_hex_to_bytes(&opt.value).map_err(|e| format!("Invalid Option Hex Value: {}", e))?;
+                    let opt_val = match opt_num {
+                        // String options (UTF-8 string)
+                        3 | 8 | 11 | 15 | 20 | 35 | 39 => {
+                            opt.value.as_bytes().to_vec()
+                        }
+                        // Uint options (0-8 bytes integer)
+                        7 | 12 | 14 | 17 | 60 => {
+                            let val_trimmed = opt.value.trim();
+                            if val_trimmed.is_empty() {
+                                Vec::new()
+                            } else {
+                                match val_trimmed.parse::<u64>() {
+                                    Ok(num) => {
+                                        if num == 0 {
+                                            vec![] // CoAP uint representing 0 is preferred to be empty (0 bytes) in some contexts, but let's send 1 zero-byte or empty. RFC7252: "a value of 0 is represented by an empty option value"
+                                        } else {
+                                            let bytes = num.to_be_bytes();
+                                            let mut start = 0;
+                                            while start < 8 && bytes[start] == 0 {
+                                                start += 1;
+                                            }
+                                            bytes[start..].to_vec()
+                                        }
+                                    }
+                                    Err(_) => {
+                                        parse_hex_to_bytes(val_trimmed).map_err(|e| format!("Invalid Option Uint/Hex Value: {}", e))?
+                                    }
+                                }
+                            }
+                        }
+                        // Opaque / Default (Hex string)
+                        _ => {
+                            parse_hex_to_bytes(&opt.value).map_err(|e| format!("Invalid Option Hex Value: {}", e))?
+                        }
+                    };
                     options_bytes.push((opt_num, opt_val));
                 }
                 

@@ -392,8 +392,8 @@ coap-code-lbl = Code:
 coap-message-id-lbl = Message ID:
 coap-token-lbl = Token (Hex):
 coap-options-title = Options:
-coap-option-num = Option Number:
-coap-option-val = Option Value:
+coap-option-num = Number:
+coap-option-val = Value:
 coap-option-add = ➕ Add Option
 coap-btn-generate = Generate CoAP Packet
 

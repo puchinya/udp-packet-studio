@@ -559,7 +559,7 @@ impl UdpStudioState {
                                                 .num_columns(2)
                                                 .spacing([12.0, 6.0])
                                                 .show(ui, |ui| {
-                                                    ui.label(tr("ins-coap-version"));
+                                                    ui.label(tr("ins-coap-ver"));
                                                     ui.monospace(format!("{}", coap.version));
                                                     ui.end_row();
 
@@ -578,7 +578,7 @@ impl UdpStudioState {
                                                     ui.monospace(format!("{} ({})", crate::coap::code_name(coap.code), coap.code));
                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-coap-message-id"));
+                                                    ui.label(tr("ins-coap-msgid"));
                                                     ui.monospace(format!("{}", coap.message_id));
                                                     ui.end_row();
 
@@ -590,7 +590,7 @@ impl UdpStudioState {
 
                                             if !coap.options.is_empty() {
                                                 ui.add_space(10.0);
-                                                ui.strong(tr("ins-coap-sec-options"));
+                                                ui.strong(tr("ins-coap-options"));
                                                 ui.add_space(4.0);
 
                                                 for (i, opt) in coap.options.iter().enumerate() {
@@ -602,7 +602,6 @@ impl UdpStudioState {
                                                             ui.vertical(|ui| {
                                                                 ui.horizontal(|ui| {
                                                                     ui.strong(format!("#{}:", i + 1));
-                                                                    ui.label("Option Number:");
                                                                     ui.monospace(format!("{} ({})", crate::coap::option_name(opt.number), opt.number));
                                                                 });
                                                                 ui.add_space(2.0);
@@ -628,7 +627,7 @@ impl UdpStudioState {
 
                                             if !coap.payload.is_empty() {
                                                 ui.add_space(10.0);
-                                                ui.strong(tr("ins-coap-sec-payload"));
+                                                ui.strong(tr("ins-coap-payload"));
                                                 ui.add_space(4.0);
 
                                                 let hex_payload = coap.payload.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
