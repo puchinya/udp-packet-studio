@@ -415,25 +415,49 @@ impl UdpStudioState {
                                                     ui.monospace(format!("0x{:04X} ({})", dns.transaction_id, dns.transaction_id));
                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-dns-flags"));
-                                                    ui.monospace(format!("0x{:04X}", dns.flags));
-                                                    ui.end_row();
+                                                     ui.label(tr("ins-dns-flags"));
+                                                     let qr_str = if dns.qr { "Response" } else { "Query" };
+                                                     let opcode_str = match dns.opcode {
+                                                         0 => "QUERY",
+                                                         1 => "IQUERY",
+                                                         2 => "STATUS",
+                                                         4 => "NOTIFY",
+                                                         5 => "UPDATE",
+                                                         _ => "UNKNOWN",
+                                                     };
+                                                     let rcode_str = match dns.rcode {
+                                                         0 => "NoError",
+                                                         1 => "FormErr",
+                                                         2 => "ServFail",
+                                                         3 => "NXDomain",
+                                                         4 => "NotImpl",
+                                                         5 => "Refused",
+                                                         _ => "UNKNOWN",
+                                                     };
+                                                     let mut flags_details = vec![qr_str, opcode_str];
+                                                     if dns.aa { flags_details.push("AA"); }
+                                                     if dns.tc { flags_details.push("TC"); }
+                                                     if dns.rd { flags_details.push("RD"); }
+                                                     if dns.ra { flags_details.push("RA"); }
+                                                     flags_details.push(rcode_str);
+                                                     ui.monospace(format!("0x{:04X} ({})", dns.flags, flags_details.join(", ")));
+                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-dns-qdcount"));
-                                                    ui.monospace(format!("{}", dns.questions.len()));
-                                                    ui.end_row();
+                                                     ui.label(tr("ins-dns-questions"));
+                                                     ui.monospace(format!("{}", dns.questions.len()));
+                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-dns-ancount"));
-                                                    ui.monospace(format!("{}", dns.answers.len()));
-                                                    ui.end_row();
+                                                     ui.label(tr("ins-dns-answers"));
+                                                     ui.monospace(format!("{}", dns.answers.len()));
+                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-dns-nscount"));
-                                                    ui.monospace(format!("{}", dns.authorities.len()));
-                                                    ui.end_row();
+                                                     ui.label(tr("ins-dns-authorities"));
+                                                     ui.monospace(format!("{}", dns.authorities.len()));
+                                                     ui.end_row();
 
-                                                    ui.label(tr("ins-dns-arcount"));
-                                                    ui.monospace(format!("{}", dns.additionals.len()));
-                                                    ui.end_row();
+                                                     ui.label(tr("ins-dns-additionals"));
+                                                     ui.monospace(format!("{}", dns.additionals.len()));
+                                                     ui.end_row();
                                                 });
 
                                             if !dns.questions.is_empty() {
