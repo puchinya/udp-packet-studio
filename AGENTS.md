@@ -132,6 +132,15 @@ To maintain visual consistency and support various OS/font configurations (espec
   - `egui::Visuals::light()` をベースとしつつ、ダークテーマのトーンと調和するプレミアムなスレートライト（`#F5F7FA` 付近）の配色とします。
   - 選択やフォーカスのアクセントカラー（インディゴ系 `#4F6EF2` など）は、視認性を維持しつつダークテーマと一貫性を持たせます。
 
+### 4.5 ComboBox/Dropdown Selection Highlight (カスタム選択時におけるComboBoxのハイライト表示)
+ComboBox（プルダウンメニュー）で選択される項目がアクティブな場合、`selectable_value`（TextやRawなどの単一選択ボタン）と同様に、ComboBoxボタン自体が選択中であることを視覚的に表すためにハイライト表示（テーマの選択色 background fill）を行います。
+
+- **実装方法**:
+  1. ComboBoxの現在の値が選択中のカスタム値であるか判定する。
+  2. 選択中である場合、`ui.visuals_mut().widgets.inactive`（および必要に応じて `widgets.hovered`）の `bg_fill` と `fg_stroke` を一時的に `visuals.selection.bg_fill` および `visuals.selection.stroke` に上書きする。
+  3. `ComboBox::show_ui` を呼び出し、その中のプルダウンリスト描画用クロージャの先頭で、一時変更したビジュアルを元のビジュアル（`original_visuals`）に戻す。これにより、プルダウン内の各項目が意図せずハイライトされるのを防ぐ。
+  4. ComboBox描画後、親 `ui` のビジュアルを元の状態に戻す。
+
 ---
 
 
