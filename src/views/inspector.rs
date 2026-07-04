@@ -68,10 +68,29 @@ impl UdpStudioState {
                             _ => tr("settings-tab-protocols"),
                         };
 
+                        let is_custom = self.inspector_protocols_order.contains(&self.inspector_protocol);
                         let mut selected_proto = self.inspector_protocol;
+                        
+                        let original_visuals = if is_custom {
+                            let orig = ui.visuals().clone();
+                            let visuals = ui.visuals_mut();
+                            visuals.widgets.inactive.bg_fill = visuals.selection.bg_fill;
+                            visuals.widgets.inactive.weak_bg_fill = visuals.selection.bg_fill;
+                            visuals.widgets.inactive.fg_stroke = visuals.selection.stroke;
+                            visuals.widgets.hovered.bg_fill = visuals.selection.bg_fill;
+                            visuals.widgets.hovered.weak_bg_fill = visuals.selection.bg_fill;
+                            visuals.widgets.hovered.fg_stroke = visuals.selection.stroke;
+                            Some(orig)
+                        } else {
+                            None
+                        };
+
                         let combo_res = egui::ComboBox::from_id_salt("inspector_custom_protocol_combo")
                             .selected_text(combo_label)
                             .show_ui(ui, |ui| {
+                                if let Some(ref orig) = original_visuals {
+                                    *ui.visuals_mut() = orig.clone();
+                                }
                                 let mut changed = false;
                                 for &proto in &self.inspector_protocols_order {
                                     let label = match proto {
@@ -86,6 +105,10 @@ impl UdpStudioState {
                                 }
                                 changed
                             });
+                        
+                        if let Some(orig) = original_visuals {
+                            *ui.visuals_mut() = orig;
+                        }
                         
                         if combo_res.inner.unwrap_or(false) {
                             self.inspector_protocol = selected_proto;
