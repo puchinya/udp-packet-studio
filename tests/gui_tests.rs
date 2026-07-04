@@ -99,6 +99,7 @@ fn make_test_state_raw(worker: UdpWorker, rx_event: Receiver<UdpEvent>, tx_logge
             udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "DNS".to_string(), port: "53".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "DNS".to_string(), port: "5353".to_string() },
             udp_packet_studio::types::PresetPortItem { protocol: "CoAP".to_string(), port: "5683".to_string() },
         ],
         protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string(), "DNS".to_string(), "CoAP".to_string()],
