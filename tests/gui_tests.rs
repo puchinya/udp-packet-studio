@@ -746,4 +746,48 @@ fn test_log_limit_and_truncation_gui() {
     assert!(found_last_offset.is_some(), "Expected inspector to display the full 1024 bytes (found 03f0: offset)");
 }
 
+#[test]
+fn test_log_virtual_scrolling_performance() {
+    use std::sync::atomic::Ordering;
+    use udp_packet_studio::views::log_viewer::LOG_ROW_RENDER_COUNT;
+    use udp_packet_studio::types::LogDirection;
+
+    let ctx = egui::Context::default();
+    let (tx_event, rx_event) = std::sync::mpsc::channel();
+    let (tx_logger, _rx_logger) = std::sync::mpsc::channel();
+    let worker = UdpWorker::spawn(tx_event, ctx.clone());
+    let mut state = make_test_state_raw(worker, rx_event, tx_logger);
+
+    // 1. Add 100,000 log entries
+    state.logs = (0..100_000)
+        .map(|_| {
+            udp_packet_studio::types::LogEntry::new(
+                chrono::Local::now(),
+                LogDirection::Sent,
+                "127.0.0.1:9000".parse().unwrap(),
+                vec![0; 10],
+            )
+        })
+        .collect();
+    state.filtered_indices = (0..100_000).collect();
+
+    // 2. Reset counter and render log viewer
+    LOG_ROW_RENDER_COUNT.store(0, Ordering::SeqCst);
+
+    let mut raw_input = egui::RawInput::default();
+    raw_input.screen_rect = Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0)));
+    let _ = ctx.run_ui(raw_input, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_log_viewer(ui);
+        });
+    });
+
+    let render_count = LOG_ROW_RENDER_COUNT.load(Ordering::SeqCst);
+    println!("Rendered log rows count: {}", render_count);
+
+    // 3. Verify that only a fraction of rows (e.g. less than 50 rows) are rendered, proving virtual scroll is working
+    assert!(render_count > 0, "Expected some rows to be rendered");
+    assert!(render_count < 100, "Expected only visible rows to be rendered (virtual scroll), but rendered {}", render_count);
+}
+
 

@@ -1378,6 +1378,10 @@ impl<'a> egui_dock::TabViewer for MyTabViewer<'a> {
     fn allowed_in_windows(&self, _tab: &mut Self::Tab) -> bool {
         false
     }
+
+    fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
+        [false, false]
+    }
 }
 
 struct MainApp {
