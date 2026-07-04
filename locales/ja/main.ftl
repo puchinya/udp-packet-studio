@@ -188,6 +188,7 @@ composer-save-created-req = リクエスト { $idx }
 
 composer-ip-preset-section = プリセット
 composer-ip-preset-nif-bcast = NIF ブロードキャスト
+composer-ip-preset-multicast = マルチキャスト
 composer-ip-history-section = 履歴
 
 composer-port-preset-section = プリセット

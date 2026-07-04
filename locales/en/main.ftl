@@ -188,6 +188,7 @@ composer-save-created-req = Request { $idx }
 
 composer-ip-preset-section = Presets
 composer-ip-preset-nif-bcast = NIF Broadcast
+composer-ip-preset-multicast = Multicast
 composer-ip-history-section = History
 
 composer-port-preset-section = Presets

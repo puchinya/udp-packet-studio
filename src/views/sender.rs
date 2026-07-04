@@ -488,11 +488,21 @@ impl UdpStudioState {
                                     ip_chosen = Some("255.255.255.255".to_string());
                                     ui.close();
                                 }
-                                // ECHONET Lite multicast
-                                if ui.button("224.0.23.0  (ECHONET Lite Multicast)").clicked() {
-                                    ip_chosen = Some("224.0.23.0".to_string());
-                                    ui.close();
-                                }
+                                 // Multicast Submenu
+                                 ui.menu_button(tr("composer-ip-preset-multicast"), |ui| {
+                                     if ui.button("224.0.23.0  (ECHONET Lite)").clicked() {
+                                         ip_chosen = Some("224.0.23.0".to_string());
+                                         ui.close();
+                                     }
+                                     if ui.button("224.0.0.251  (mDNS IPv4)").clicked() {
+                                         ip_chosen = Some("224.0.0.251".to_string());
+                                         ui.close();
+                                     }
+                                     if ui.button("ff02::fb  (mDNS IPv6)").clicked() {
+                                         ip_chosen = Some("ff02::fb".to_string());
+                                         ui.close();
+                                     }
+                                 });
 
                                 // NIF broadcast addresses
                                 if let Ok(ifaces) = get_if_addrs::get_if_addrs() {
