@@ -25,6 +25,10 @@ echo "Copying binary..."
 cp "${BINARY_PATH}" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
+echo "Copying assets..."
+cp -R assets "${RESOURCES_DIR}/"
+
+
 # Handle Icon file if it exists
 HAS_ICON=false
 # Search for icon.icns in project root or scripts directory
@@ -96,10 +100,6 @@ if [ -z "$INSTALLER_IDENTITY" ]; then
   INSTALLER_IDENTITY=$(security find-identity -v | grep "3rd Party Mac Developer Installer\|Mac Installer Distribution" | head -n 1 | awk -F '"' '{print $2}')
 fi
 
-# 0b. Remove extended attributes (like com.apple.quarantine) from the app bundle
-echo "Removing extended attributes (quarantine) from bundle..."
-xattr -cr "${APP_BUNDLE}"
-
 # 1. Embed provisioning profile
 if [ -z "$PROVISIONING_PROFILE" ]; then
   # Search for any .provisionprofile file in current directory or scripts/
@@ -113,6 +113,10 @@ else
   echo "Warning: No provisioning profile found. Set PROVISIONING_PROFILE env var or place a .provisionprofile file here."
   echo "You will not be able to submit to TestFlight or the App Store without it."
 fi
+
+# 1b. Remove extended attributes (like com.apple.quarantine) from all files in the app bundle
+echo "Removing extended attributes (quarantine) from bundle..."
+xattr -cr "${APP_BUNDLE}"
 
 # 2. Sign the app bundle (after all assets and profiles are inside)
 if [ -n "$CODESIGN_IDENTITY" ]; then

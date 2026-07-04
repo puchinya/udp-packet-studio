@@ -6,7 +6,7 @@ tabs-inspector = 🔍 Inspector
 tabs-multicast = 🌐 Multicast
 
 # Title Bar / Bind Controls
-titlebar-bind-addr = Bind Address:
+titlebar-bind-addr = Bind:
 titlebar-btn-stop = ⏹ Stop
 titlebar-btn-bind = ▶ Bind
 titlebar-status-active = ● Active
@@ -31,22 +31,41 @@ statusbar-auto-save-disabled = 💾 Auto-Save: Disabled
 
 # Settings Dialog
 settings-title = ⚙ Preferences
+settings-tab-general = General
+settings-tab-log-display = Log Display
+settings-tab-log-saving = Log Saving
+settings-tab-others = Others
 settings-lang-section = Language Settings
 settings-lang-label = Language:
 settings-lang-system = System Setting
 settings-lang-ja = 日本語 (Japanese)
 settings-lang-en = English
+settings-theme-section = Theme Settings
+settings-theme-label = Theme:
+settings-theme-system = System Setting
+settings-theme-light = Light
+settings-theme-dark = Dark
 settings-auto-save-section = Log Auto-Save Settings
 settings-auto-save-enable = Enable log auto-save
 settings-auto-save-format = Log Format:
 settings-auto-save-dir = Save Directory:
 settings-browse = 📁 Browse...
+settings-log-limit-section = Log Limit Settings
+settings-max-display-bytes = Max Data Display Limit (Bytes):
+settings-max-log-lines = Max Log Lines stored:
+settings-layout-section = Layout Settings
+settings-reset-layout-btn = Reset Window Layout
 settings-close = Close
 settings-reset = Reset Settings
 settings-reset-confirm-title = Confirm Reset
 settings-reset-confirm-msg = Are you sure you want to reset all settings? The application will restart automatically.
 settings-ok = OK
 settings-cancel = Cancel
+dialog-error-title = Error
+dialog-format-change-title = Format Change
+dialog-format-change-msg = The current payload cannot be converted. If you proceed, the helper settings for the new protocol will be reset to defaults. Clear and continue?
+dialog-yes = Yes
+dialog-no = No
 
 # Collections View
 collections-new = + New
@@ -110,9 +129,21 @@ el-deoj-preset-custom = Custom Object...
 
 el-label-esv = Service Code (ESV):
 el-esv-preset-get = Get (0x62 - Property Read Request)
-el-esv-preset-setc = SetC (0x61 - Property Write, Response Req)
+el-esv-preset-getres = Get_Res (0x72 - Property Read Response)
+el-esv-preset-setc = SetC (0x61 - Property Write, Response Required)
+el-esv-preset-setcsna = SetC_SNA (0x71 - Property Write Not Accepted)
 el-esv-preset-seti = SetI (0x60 - Property Write, No Response)
+el-esv-preset-setisna = SetI_SNA (0x70 - Property Write Not Accepted, No Response)
+el-esv-preset-infreq = INF_REQ (0x63 - Property Notification Request)
 el-esv-preset-inf = INF (0x73 - Property Notification)
+el-esv-preset-infsna = INF_SNA (0x74 - Property Notification Not Accepted)
+el-esv-preset-infc = INFC (0x7A - Property Notification (Response Required))
+el-esv-preset-infcres = INFC_Res (0x7B - Property Notification Response)
+el-esv-preset-setget = SetGet (0x6E - Property Write & Read Request)
+el-esv-preset-setgetres = SetGet_Res (0x7E - Property Write & Read Response)
+el-esv-preset-setgetsna = SetGet_SNA (0x7F - Property Write & Read Not Accepted)
+el-esv-preset-setres = Set_Res (0x71 - Property Write Response)
+el-esv-preset-setires = SetI_Res (0x74 - Property Write Response, No Response Required)
 
 el-label-epc = Property Code (EPC):
 el-epc-preset-status = Operation Status (0x80)
@@ -125,11 +156,13 @@ el-edt-on = ON (30)
 el-edt-off = OFF (31)
 
 el-btn-generate = ⚙ Generate and Insert ECHONET Lite Hex
+el-btn-add-epc = + Add Property
 el-err-prefix = ECHONET Lite builder error: { $msg }
 
 # Composer Tab
 composer-dest-addr = Destination Address:
 composer-payload-format = Payload Format:
+composer-protocol-label = Protocol:
 composer-format-text = Text (UTF-8)
 composer-format-hex = Hex (Spaces optional)
 composer-payload-content = Payload Content:
@@ -145,17 +178,41 @@ composer-btn-save = 💾 Save
 composer-save-default-col = My Requests
 composer-save-created-req = Request { $idx }
 
+composer-ip-preset-section = Presets
+composer-ip-preset-nif-bcast = NIF Broadcast
+composer-ip-history-section = History
+
+composer-port-preset-section = Presets
+composer-port-preset-echonet = ECHONET Lite : 3610
+composer-port-preset-syslog = Syslog : 514
+composer-port-preset-snmp = SNMP : 161
+
 # Log Viewer Tab
 log-btn-clear = 🗑 Clear
+log-ctx-copy-csv = Copy as CSV
+log-ctx-copy-json = Copy as JSON
 log-btn-save = 💾 Save Logs
 log-btn-save-tip = Export logs to selected format
 log-checkbox-autoscroll = Auto-scroll
-log-label-ip-filter = IP Filter:
+log-label-ip-filter = Filter:
+log-filter-apply-btn = Apply
+log-filter-tooltip = Packet filter usage:
+  - port == <port>: match source or destination port
+  - srcport == <port>: match source port only
+  - dstport == <port>: match destination port only
+  - ip == <ip_pattern>: match source or dest IP (e.g. 192.168.3.*, wildcard supported)
+  - payload == <hex>: match full payload (e.g. 010203 or 01:02:03)
+  - payload[1:3] == <hex>: match slice of payload
+  - payload matches "<regex>": regex match on payload string (case-insensitive)
+  - and / or / ( ): logical operators
+  - Implicit IP filter applies if input starts with a digit
 log-hdr-no = No.
 log-hdr-time = Time
 log-hdr-type = Type
-log-hdr-ip = IP
-log-hdr-port = Port
+log-hdr-source-ip = Src IP
+log-hdr-send-port = Src Port
+log-hdr-dest-ip = Dest IP
+log-hdr-recv-port = Dest Port
 log-hdr-length = Length
 log-hdr-info = Info (Preview)
 log-save-success = Logs saved successfully to { $path }
@@ -164,10 +221,10 @@ log-save-fail = Failed to save logs: { $msg }
 # Inspector Panel
 ins-label-timestamp = Timestamp: { $ts }
 ins-label-sent-to = Sent To:
-ins-label-received-from = Received From:
+ins-label-received-from = Source:
 ins-label-event-target = Event target:
 ins-label-error-target = Error target:
-ins-label-size = Size: { $len } bytes
+ins-label-size = Length: { $len } B
 ins-label-decode-as = Decode As:
 ins-proto-raw = 🔌 Raw (Hex)
 ins-proto-ascii = 📝 Text (ASCII)
@@ -251,6 +308,60 @@ mc-hdr-multicast-addr = Group
 mc-hdr-interface-addr = Interface
 mc-btn-leave = Leave
 mc-err-empty-fields = Multicast address and Interface address cannot be empty.
+
+# Sockets Window / Dropdown
+sockets-window-title = 🔌 Sockets Manager
+sockets-btn-add = ➕ Add Socket
+sockets-lbl-name = Name:
+sockets-tooltip-delete = Delete this socket
+sockets-navbar-btn-list = 🔌 Sockets...
+
+# Syslog & SNMP Inspector
+ins-proto-syslog = 📝 Syslog
+ins-proto-snmp = 📡 SNMP
+ins-syslog-rfc = Standard:
+ins-syslog-priority = Priority:
+ins-syslog-facility = Facility:
+ins-syslog-severity = Severity:
+ins-syslog-timestamp = Timestamp:
+ins-syslog-hostname = Hostname:
+ins-syslog-appname = App Name:
+ins-syslog-procid = Process ID:
+ins-syslog-msgid = Message ID:
+ins-syslog-message = Message:
+
+ins-snmp-version = Version:
+ins-snmp-community = Community:
+ins-snmp-pdutype = PDU Type:
+ins-snmp-reqid = Request ID:
+ins-snmp-errstatus = Error Status:
+ins-snmp-errindex = Error Index:
+ins-snmp-varbinds = Variable Bindings:
+
+# Syslog & SNMP Helper
+syslog-helper-checkbox = 📝 Syslog Builder
+snmp-helper-checkbox = 📡 SNMP Builder
+
+syslog-version = RFC Version:
+syslog-auto-ts = Auto Timestamp
+syslog-hostname-lbl = Hostname:
+syslog-appname-lbl = App Name:
+syslog-procid-lbl = Proc ID:
+syslog-msgid-lbl = Msg ID:
+syslog-msg-lbl = Message:
+syslog-btn-generate = Generate Syslog
+
+snmp-version-lbl = SNMP Version:
+snmp-community-lbl = Community:
+snmp-pdutype-lbl = PDU Type:
+snmp-reqid-lbl = Request ID:
+snmp-errstatus-lbl = Error Status:
+snmp-errindex-lbl = Error Index:
+snmp-varbind-add = ➕ Add Variable
+snmp-varbind-oid = OID:
+snmp-varbind-type = Type:
+snmp-varbind-val = Value:
+snmp-btn-generate = Generate SNMP
 
 
 

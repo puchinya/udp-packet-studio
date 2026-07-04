@@ -3,9 +3,9 @@
 このドキュメントでは、GitHub Actions を使用して Windows および macOS 向けのバイナリをビルドし、macOS 向けバイナリ（`.dmg`）の署名と公証（Notarization）を行ってリリースするための設定手順を説明します。
 
 本プロジェクトには、以下のリリース用ファイルが設定されています：
-1. [.github/workflows/release.yml](file:///Users/nabeshimamasataka/RustroverProjects/upd-packet-studio/.github/workflows/release.yml) — GitHub Actions のリリース用ワークフロー定義。
-2. [scripts/build-macos.sh](file:///Users/nabeshimamasataka/RustroverProjects/upd-packet-studio/scripts/build-macos.sh) — macOS アプリケーションのパッケージング、ディスクイメージ（.dmg）の作成、署名、公証、ステープルを行うスクリプト。
-3. [scripts/entitlements.plist](file:///Users/nabeshimamasataka/RustroverProjects/upd-packet-studio/scripts/entitlements.plist) — macOS の Hardened Runtime（強化されたランタイム）に必要なセキュリティ権限設定。
+1. [.github/workflows/release.yml](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/.github/workflows/release.yml) — GitHub Actions のリリース用ワークフロー定義。
+2. [scripts/build-macos.sh](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/scripts/build-macos.sh) — macOS アプリケーションのパッケージング、ディスクイメージ（.dmg）の作成、署名、公証、ステープルを行うスクリプト。
+3. [scripts/entitlements.plist](file:///Users/nabeshimamasataka/RustroverProjects/udp-packet-studio/scripts/entitlements.plist) — macOS の Hardened Runtime（強化されたランタイム）に必要なセキュリティ権限設定。
 
 ---
 

@@ -99,7 +99,7 @@ fn test_gui_triggered_communication() {
     use std::sync::mpsc::channel;
     use udp_packet_studio::UdpStudioState;
     use udp_packet_studio::locales::LanguageSetting;
-    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab};
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab};
     use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
 
     let ctx = egui::Context::default();
@@ -109,9 +109,9 @@ fn test_gui_triggered_communication() {
     let worker = UdpWorker::spawn(tx_event, ctx.clone());
     
     // Bind to an ephemeral port
-    worker.send(UdpCommand::Bind("127.0.0.1:0".to_string()));
+    worker.send(UdpCommand::Bind { id: "main".to_string(), addr: "127.0.0.1:0".to_string() });
     let bound_addr = match rx_event.recv_timeout(std::time::Duration::from_secs(2)) {
-        Ok(UdpEvent::Bound(addr)) => addr,
+        Ok(UdpEvent::Bound { id: _, addr }) => addr,
         other => panic!("Expected Bound event, got {:?}", other),
     };
 
@@ -124,6 +124,7 @@ fn test_gui_triggered_communication() {
 
     // Construct the state with test values
     let mut state = UdpStudioState {
+        theme: udp_packet_studio::types::AppTheme::System,
         collections: Vec::new(),
         selected_request_id: None,
         composer_selected_collection_idx: 0,
@@ -136,42 +137,131 @@ fn test_gui_triggered_communication() {
         composer_name: "Test Name".to_string(),
         logs: Vec::new(),
         selected_log_idx: None,
+        selected_log_indices: std::collections::BTreeSet::new(),
+        last_clicked_log_idx: None,
         filter_text: String::new(),
+        filter_input: String::new(),
+        filter_history: Vec::new(),
+        dock_state_serialized: None,
+        reset_layout_requested: false,
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_ip: "127.0.0.1".to_string(),
-        listener_port: "0".to_string(),
+        sockets: vec![udp_packet_studio::types::ActiveSocketState {
+            id: "main".to_string(),
+            name: "Main Socket".to_string(),
+            ip: "127.0.0.1".to_string(),
+            port: bound_addr.port().to_string(),
+            is_listening: true,
+            bound_addr: Some(bound_addr.to_string()),
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }],
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
         listener_ip_history: Vec::new(),
         listener_port_history: Vec::new(),
-        is_listening: true, // Needed to enable the send button
-        bound_addr: Some(bound_addr.to_string()),
-        listener_error: None,
         udp_worker: worker,
         rx_event,
         el_tid: "0001".to_string(),
         el_seoj: "05FF01".to_string(),
         el_deoj_preset: 0,
-        el_deoj_custom: "013001".to_string(),
+        el_deoj_custom: "0EF001".to_string(),
+        el_deoj_eoj: String::new(),
         el_esv_preset: 0,
-        el_epc_preset: 0,
-        el_epc_custom: "80".to_string(),
-        el_edt: "30".to_string(),
+        el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
         el_show_helper: false,
-        multicast_groups: Vec::new(),
+        syslog_show_helper: false,
+        syslog_protocol_version: 0,
+        syslog_facility: 1,
+        syslog_severity: 5,
+        syslog_auto_timestamp: true,
+        syslog_timestamp: String::new(),
+        syslog_hostname: "localhost".to_string(),
+        syslog_app_name: "udp-packet-studio".to_string(),
+        syslog_proc_id: "-".to_string(),
+        syslog_msg_id: "-".to_string(),
+        syslog_msg: "Hello, Syslog!".to_string(),
+        snmp_show_helper: false,
+        snmp_version: 1,
+        snmp_community: "public".to_string(),
+        snmp_pdu_type: 0,
+        snmp_request_id: 1,
+        snmp_error_status: 0,
+        snmp_error_index: 0,
+        snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
         multicast_input_addr: "224.0.23.0".to_string(),
         multicast_input_interface: "0.0.0.0".to_string(),
         inspector_protocol: InspectorProtocol::Raw,
         auto_save_enabled: false,
         auto_save_dir: String::new(),
         auto_save_format: LogExportFormat::Csv,
-        bind_time: None,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,
         language_setting: LanguageSetting::English,
+        mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128,
+        max_log_lines: 10000,
+        protocol_config: udp_packet_studio::types::ProtocolConfig::default(),
+        settings_selected_proto_tab: 0,
+        inspector_protocols_order: vec![
+            udp_packet_studio::types::InspectorProtocol::EchonetLite,
+            udp_packet_studio::types::InspectorProtocol::Syslog,
+            udp_packet_studio::types::InspectorProtocol::Snmp,
+        ],
+        preset_ports_order: vec![
+            udp_packet_studio::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+        ],
+        protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string()],
+        composer_pending_format_change: None,
+        collection_pending_format_change: None,
+        last_selected_request_id: None,
+        req_el_tid: "0001".to_string(),
+        req_el_seoj: "05FF01".to_string(),
+        req_el_deoj_preset: 0,
+        req_el_deoj_custom: "0EF001".to_string(),
+        req_el_deoj_eoj: String::new(),
+        req_el_esv_preset: 0,
+        req_el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+        req_syslog_protocol_version: 0,
+        req_syslog_facility: 1,
+        req_syslog_severity: 5,
+        req_syslog_auto_timestamp: true,
+        req_syslog_timestamp: String::new(),
+        req_syslog_hostname: "localhost".to_string(),
+        req_syslog_app_name: "udp-packet-studio".to_string(),
+        req_syslog_proc_id: "-".to_string(),
+        req_syslog_msg_id: "-".to_string(),
+        req_syslog_msg: "Hello, Syslog!".to_string(),
+        req_snmp_version: 1,
+        req_snmp_community: "public".to_string(),
+        req_snmp_pdu_type: 0,
+        req_snmp_request_id: 1,
+        req_snmp_error_status: 0,
+        req_snmp_error_index: 0,
+        req_snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
+        editing_request_id: None,
+        req_el_show_helper: false,
+        req_syslog_show_helper: false,
+        req_snmp_show_helper: false,
+        composer_selected_proto: PayloadType::EchonetLite,
+        collections_selected_proto: PayloadType::EchonetLite,
     };
 
     // Frame 1: Render the GUI to determine button layout & coordinate
@@ -238,7 +328,7 @@ fn test_collections_gui_interactions() {
     use std::sync::mpsc::channel;
     use udp_packet_studio::UdpStudioState;
     use udp_packet_studio::locales::LanguageSetting;
-    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, Collection, PacketDefinition};
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab, Collection, PacketDefinition};
     use udp_packet_studio::udp_worker::{UdpWorker, UdpCommand, UdpEvent};
 
     let ctx = egui::Context::default();
@@ -248,9 +338,9 @@ fn test_collections_gui_interactions() {
     let worker = UdpWorker::spawn(tx_event, ctx.clone());
     
     // Bind to an ephemeral port
-    worker.send(UdpCommand::Bind("127.0.0.1:0".to_string()));
+    worker.send(UdpCommand::Bind { id: "main".to_string(), addr: "127.0.0.1:0".to_string() });
     let bound_addr = match rx_event.recv_timeout(std::time::Duration::from_secs(2)) {
-        Ok(UdpEvent::Bound(addr)) => addr,
+        Ok(UdpEvent::Bound { id: _, addr }) => addr,
         other => panic!("Expected Bound event, got {:?}", other),
     };
 
@@ -281,6 +371,7 @@ fn test_collections_gui_interactions() {
 
     // Construct the state with test values
     let mut state = UdpStudioState {
+        theme: udp_packet_studio::types::AppTheme::System,
         collections: vec![test_col],
         selected_request_id: Some(test_req_id.clone()),
         composer_selected_collection_idx: 0,
@@ -293,42 +384,131 @@ fn test_collections_gui_interactions() {
         composer_name: "Composer Request".to_string(),
         logs: Vec::new(),
         selected_log_idx: None,
+        selected_log_indices: std::collections::BTreeSet::new(),
+        last_clicked_log_idx: None,
         filter_text: String::new(),
+        filter_input: String::new(),
+        filter_history: Vec::new(),
+        dock_state_serialized: None,
+        reset_layout_requested: false,
         auto_scroll: true,
         log_export_format: LogExportFormat::Csv,
         filtered_indices: Vec::new(),
-        listener_ip: "127.0.0.1".to_string(),
-        listener_port: "0".to_string(),
+        sockets: vec![udp_packet_studio::types::ActiveSocketState {
+            id: "main".to_string(),
+            name: "Main Socket".to_string(),
+            ip: "127.0.0.1".to_string(),
+            port: bound_addr.port().to_string(),
+            is_listening: true,
+            bound_addr: Some(bound_addr.to_string()),
+            error: None,
+            bind_time: None,
+            multicast_groups: Vec::new(),
+        }],
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
         listener_ip_history: Vec::new(),
         listener_port_history: Vec::new(),
-        is_listening: true, // Needed to enable the send button
-        bound_addr: Some(bound_addr.to_string()),
-        listener_error: None,
         udp_worker: worker,
         rx_event,
         el_tid: "0001".to_string(),
         el_seoj: "05FF01".to_string(),
         el_deoj_preset: 0,
-        el_deoj_custom: "013001".to_string(),
+        el_deoj_custom: "0EF001".to_string(),
+        el_deoj_eoj: String::new(),
         el_esv_preset: 0,
-        el_epc_preset: 0,
-        el_epc_custom: "80".to_string(),
-        el_edt: "30".to_string(),
+        el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
         el_show_helper: false,
-        multicast_groups: Vec::new(),
+        syslog_show_helper: false,
+        syslog_protocol_version: 0,
+        syslog_facility: 1,
+        syslog_severity: 5,
+        syslog_auto_timestamp: true,
+        syslog_timestamp: String::new(),
+        syslog_hostname: "localhost".to_string(),
+        syslog_app_name: "udp-packet-studio".to_string(),
+        syslog_proc_id: "-".to_string(),
+        syslog_msg_id: "-".to_string(),
+        syslog_msg: "Hello, Syslog!".to_string(),
+        snmp_show_helper: false,
+        snmp_version: 1,
+        snmp_community: "public".to_string(),
+        snmp_pdu_type: 0,
+        snmp_request_id: 1,
+        snmp_error_status: 0,
+        snmp_error_index: 0,
+        snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
         multicast_input_addr: "224.0.23.0".to_string(),
         multicast_input_interface: "0.0.0.0".to_string(),
         inspector_protocol: InspectorProtocol::Raw,
         auto_save_enabled: false,
         auto_save_dir: String::new(),
         auto_save_format: LogExportFormat::Csv,
-        bind_time: None,
         settings_open: false,
         settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
         about_open: false,
         about_tab: AboutTab::Info,
         tx_logger,
         language_setting: LanguageSetting::English,
+        mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128,
+        max_log_lines: 10000,
+        protocol_config: udp_packet_studio::types::ProtocolConfig::default(),
+        settings_selected_proto_tab: 0,
+        inspector_protocols_order: vec![
+            udp_packet_studio::types::InspectorProtocol::EchonetLite,
+            udp_packet_studio::types::InspectorProtocol::Syslog,
+            udp_packet_studio::types::InspectorProtocol::Snmp,
+        ],
+        preset_ports_order: vec![
+            udp_packet_studio::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+        ],
+        protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string()],
+        composer_pending_format_change: None,
+        collection_pending_format_change: None,
+        last_selected_request_id: None,
+        req_el_tid: "0001".to_string(),
+        req_el_seoj: "05FF01".to_string(),
+        req_el_deoj_preset: 0,
+        req_el_deoj_custom: "0EF001".to_string(),
+        req_el_deoj_eoj: String::new(),
+        req_el_esv_preset: 0,
+        req_el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+        req_syslog_protocol_version: 0,
+        req_syslog_facility: 1,
+        req_syslog_severity: 5,
+        req_syslog_auto_timestamp: true,
+        req_syslog_timestamp: String::new(),
+        req_syslog_hostname: "localhost".to_string(),
+        req_syslog_app_name: "udp-packet-studio".to_string(),
+        req_syslog_proc_id: "-".to_string(),
+        req_syslog_msg_id: "-".to_string(),
+        req_syslog_msg: "Hello, Syslog!".to_string(),
+        req_snmp_version: 1,
+        req_snmp_community: "public".to_string(),
+        req_snmp_pdu_type: 0,
+        req_snmp_request_id: 1,
+        req_snmp_error_status: 0,
+        req_snmp_error_index: 0,
+        req_snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
+        editing_request_id: None,
+        req_el_show_helper: false,
+        req_syslog_show_helper: false,
+        req_snmp_show_helper: false,
+        composer_selected_proto: PayloadType::EchonetLite,
+        collections_selected_proto: PayloadType::EchonetLite,
     };
 
     // ----------------------------------------------------
@@ -493,6 +673,61 @@ fn test_collections_gui_interactions() {
     // Assert: A new collection has been added to state
     assert_eq!(state.collections.len(), 2);
     assert_eq!(state.collections[1].name, "Collection 2");
+
+    // ----------------------------------------------------
+    // TEST 4: Add a Request to Collection (clicking "+" button)
+    // ----------------------------------------------------
+    let mut plus_pos = None;
+    for clipped in &full_output.shapes {
+        if let egui::epaint::Shape::Text(text_shape) = &clipped.shape {
+            if text_shape.galley.text() == "+" {
+                let rect = text_shape.galley.rect;
+                let world_pos = text_shape.pos;
+                plus_pos = Some(world_pos + rect.center().to_vec2());
+                break;
+            }
+        }
+    }
+    let plus_pos = plus_pos.expect("Expected '+' button to be rendered");
+
+    // Click "+" button to add a request
+    let mut raw_input_add = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0))),
+        ..Default::default()
+    };
+    raw_input_add.events.push(egui::Event::PointerMoved(plus_pos));
+    raw_input_add.events.push(egui::Event::PointerButton {
+        pos: plus_pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    let _ = ctx.run_ui(raw_input_add, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_collections(ui);
+        });
+    });
+
+    let mut raw_input_add_up = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0))),
+        ..Default::default()
+    };
+    raw_input_add_up.events.push(egui::Event::PointerButton {
+        pos: plus_pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    let _ = ctx.run_ui(raw_input_add_up, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_collections(ui);
+        });
+    });
+
+    // Assert: A new request has been added to state.collections[0] (which is the first collection)
+    assert_eq!(state.collections[0].requests.len(), 2);
+    // Assert: The new request has an empty payload
+    assert_eq!(state.collections[0].requests[1].payload, "");
 }
 
 fn find_all_text_centers(shapes: &[egui::epaint::ClippedShape], text: &str) -> Vec<egui::Pos2> {
@@ -507,6 +742,212 @@ fn find_all_text_centers(shapes: &[egui::epaint::ClippedShape], text: &str) -> V
         }
     }
     centers
+}
+
+#[allow(deprecated)]
+#[test]
+fn test_log_limit_and_truncation_gui() {
+    use std::sync::mpsc::channel;
+    use udp_packet_studio::UdpStudioState;
+    use udp_packet_studio::locales::LanguageSetting;
+    use udp_packet_studio::types::{PayloadType, LoggerCommand, LogExportFormat, InspectorProtocol, AboutTab, SettingsTab, LogEntry, LogDirection};
+    use udp_packet_studio::udp_worker::UdpWorker;
+
+    let ctx = egui::Context::default();
+    let (tx_event, rx_event) = channel();
+    let worker = UdpWorker::spawn(tx_event, ctx.clone());
+    let (tx_logger, _rx_logger) = channel::<LoggerCommand>();
+
+    let mut state = UdpStudioState {
+        theme: udp_packet_studio::types::AppTheme::System,
+        collections: Vec::new(),
+        selected_request_id: None,
+        composer_selected_collection_idx: 0,
+        composer_ip: "127.0.0.1".to_string(),
+        composer_port: "9000".to_string(),
+        composer_ip_history: Vec::new(),
+        composer_port_history: Vec::new(),
+        composer_payload_type: PayloadType::Text,
+        composer_payload: String::new(),
+        composer_name: String::new(),
+        logs: Vec::new(),
+        selected_log_idx: None,
+        selected_log_indices: std::collections::BTreeSet::new(),
+        last_clicked_log_idx: None,
+        filter_text: String::new(),
+        filter_input: String::new(),
+        filter_history: Vec::new(),
+        dock_state_serialized: None,
+        reset_layout_requested: false,
+        auto_scroll: true,
+        log_export_format: LogExportFormat::Csv,
+        filtered_indices: Vec::new(),
+        sockets: Vec::new(),
+        selected_socket_id: "main".to_string(),
+        multicast_selected_socket_id: "main".to_string(),
+        listener_ip_history: Vec::new(),
+        listener_port_history: Vec::new(),
+        udp_worker: worker,
+        rx_event,
+        el_tid: "0001".to_string(),
+        el_seoj: "05FF01".to_string(),
+        el_deoj_preset: 0,
+        el_deoj_custom: "0EF001".to_string(),
+        el_deoj_eoj: String::new(),
+        el_esv_preset: 0,
+        el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+        el_show_helper: false,
+        syslog_show_helper: false,
+        syslog_protocol_version: 0,
+        syslog_facility: 1,
+        syslog_severity: 5,
+        syslog_auto_timestamp: true,
+        syslog_timestamp: String::new(),
+        syslog_hostname: "localhost".to_string(),
+        syslog_app_name: "udp-packet-studio".to_string(),
+        syslog_proc_id: "-".to_string(),
+        syslog_msg_id: "-".to_string(),
+        syslog_msg: "Hello, Syslog!".to_string(),
+        snmp_show_helper: false,
+        snmp_version: 1,
+        snmp_community: "public".to_string(),
+        snmp_pdu_type: 0,
+        snmp_request_id: 1,
+        snmp_error_status: 0,
+        snmp_error_index: 0,
+        snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
+        multicast_input_addr: "224.0.23.0".to_string(),
+        multicast_input_interface: "0.0.0.0".to_string(),
+        inspector_protocol: InspectorProtocol::Raw,
+        auto_save_enabled: false,
+        auto_save_dir: String::new(),
+        auto_save_format: LogExportFormat::Csv,
+        settings_open: false,
+        settings_reset_confirm_open: false,
+        settings_tab: SettingsTab::General,
+        about_open: false,
+        about_tab: AboutTab::Info,
+        tx_logger,
+        language_setting: LanguageSetting::English,
+        mra_db: udp_packet_studio::mra::MraDatabase::load_empty(),
+        max_display_data_bytes: 128, // display limit
+        max_log_lines: 10000,         // stored limit
+        protocol_config: udp_packet_studio::types::ProtocolConfig::default(),
+        settings_selected_proto_tab: 0,
+        inspector_protocols_order: vec![
+            udp_packet_studio::types::InspectorProtocol::EchonetLite,
+            udp_packet_studio::types::InspectorProtocol::Syslog,
+            udp_packet_studio::types::InspectorProtocol::Snmp,
+        ],
+        preset_ports_order: vec![
+            udp_packet_studio::types::PresetPortItem { protocol: "ECHONET Lite".to_string(), port: "3610".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "Syslog".to_string(), port: "514".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Agent".to_string(), port: "161".to_string() },
+            udp_packet_studio::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: "162".to_string() },
+        ],
+        protocol_mru: vec!["ECHONET Lite".to_string(), "Syslog".to_string(), "SNMP".to_string()],
+        composer_pending_format_change: None,
+        collection_pending_format_change: None,
+        last_selected_request_id: None,
+        req_el_tid: "0001".to_string(),
+        req_el_seoj: "05FF01".to_string(),
+        req_el_deoj_preset: 0,
+        req_el_deoj_custom: "0EF001".to_string(),
+        req_el_deoj_eoj: String::new(),
+        req_el_esv_preset: 0,
+        req_el_properties: vec![udp_packet_studio::types::ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+        req_syslog_protocol_version: 0,
+        req_syslog_facility: 1,
+        req_syslog_severity: 5,
+        req_syslog_auto_timestamp: true,
+        req_syslog_timestamp: String::new(),
+        req_syslog_hostname: "localhost".to_string(),
+        req_syslog_app_name: "udp-packet-studio".to_string(),
+        req_syslog_proc_id: "-".to_string(),
+        req_syslog_msg_id: "-".to_string(),
+        req_syslog_msg: "Hello, Syslog!".to_string(),
+        req_snmp_version: 1,
+        req_snmp_community: "public".to_string(),
+        req_snmp_pdu_type: 0,
+        req_snmp_request_id: 1,
+        req_snmp_error_status: 0,
+        req_snmp_error_index: 0,
+        req_snmp_varbinds: vec![udp_packet_studio::types::SnmpVarBindState {
+            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+            value_type: udp_packet_studio::types::SnmpValueType::Null,
+            value: String::new(),
+        }],
+        editing_request_id: None,
+        req_el_show_helper: false,
+        req_syslog_show_helper: false,
+        req_snmp_show_helper: false,
+        composer_selected_proto: PayloadType::EchonetLite,
+        collections_selected_proto: PayloadType::EchonetLite,
+    };
+
+    // 1. Add 10,005 items, each with 1KB data.
+    let data_1kb = vec![0xAA; 1024]; // 1KB data
+    for _ in 0..10005 {
+        let entry = LogEntry::new(
+            chrono::Local::now(),
+            LogDirection::Received,
+            std::net::SocketAddr::from(([127, 0, 0, 1], 9000)),
+            data_1kb.clone(),
+        );
+        state.push_log(entry);
+    }
+
+    // Verify logs count is capped at 10,000
+    assert_eq!(state.logs.len(), 10000);
+
+    // Verify each log contains exactly 1024 bytes (1KB)
+    for entry in &state.logs {
+        assert_eq!(entry.data.len(), 1024);
+    }
+
+    // Check dynamic preview generation in data model
+    let expected_preview_start = vec!["AA"; 128].join(" ");
+    let expected_full_preview = format!("{}...", expected_preview_start);
+    assert_eq!(state.logs[0].get_preview(state.max_display_data_bytes), expected_full_preview);
+
+    // 2. Render the log viewer GUI.
+    let mut raw_input = egui::RawInput::default();
+    raw_input.screen_rect = Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0)));
+    let full_output = ctx.run_ui(raw_input, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_log_viewer(ui);
+        });
+    });
+
+    // Verify that the truncated preview text is rendered in the GUI
+    // Search for a prefix to avoid galley wrapped layout mismatches
+    let partial_expected_preview = vec!["AA"; 20].join(" ");
+    let rendered_previews = find_all_text_centers(&full_output.shapes, &partial_expected_preview);
+    assert!(!rendered_previews.is_empty(), "Expected to find some previews rendered in the log table");
+
+    // 3. Verify Inspector displays full data (no truncation)
+    // Select the first log item
+    state.selected_log_idx = Some(0);
+    state.inspector_protocol = InspectorProtocol::Raw;
+
+    let mut raw_input2 = egui::RawInput::default();
+    raw_input2.screen_rect = Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 700.0)));
+    let inspector_output = ctx.run_ui(raw_input2, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            state.show_inspector(ui);
+        });
+    });
+
+    // The inspector raw protocol hex dump for 1024 bytes has 64 rows of 16 bytes.
+    // e.g. "0000: AA AA AA AA AA AA AA AA AA AA AA AA AA AA AA AA"
+    // Let's check that the line prefix "03F0:" (for byte offset 1008 = 0x03F0) is rendered,
+    // which proves that the full dump (up to 1024 bytes) is rendered.
+    let found_last_offset = find_text_center(&inspector_output.shapes, "03f0:");
+    assert!(found_last_offset.is_some(), "Expected inspector to display the full 1024 bytes (found 03f0: offset)");
 }
 
 

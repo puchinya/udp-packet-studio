@@ -6,7 +6,7 @@ tabs-inspector = 🔍 インスペクター
 tabs-multicast = 🌐 マルチキャスト
 
 # Title Bar / Bind Controls
-titlebar-bind-addr = バインド先アドレス:
+titlebar-bind-addr = バインド先:
 titlebar-btn-stop = ⏹ 停止
 titlebar-btn-bind = ▶ バインド
 titlebar-status-active = ● 有効
@@ -31,22 +31,41 @@ statusbar-auto-save-disabled = 💾 自動保存: 無効
 
 # Settings Dialog
 settings-title = ⚙ 設定
+settings-tab-general = 一般
+settings-tab-log-display = ログ表示
+settings-tab-log-saving = ログ保存
+settings-tab-others = その他
 settings-lang-section = 言語設定
 settings-lang-label = 表示言語:
 settings-lang-system = システム設定
 settings-lang-ja = 日本語 (Japanese)
 settings-lang-en = English
+settings-theme-section = テーマ設定
+settings-theme-label = カラーテーマ:
+settings-theme-system = システム設定
+settings-theme-light = ライト
+settings-theme-dark = ダーク
 settings-auto-save-section = ログ自動保存設定
 settings-auto-save-enable = ログ自動保存を有効にする
 settings-auto-save-format = ログフォーマット:
 settings-auto-save-dir = 保存先ディレクトリ:
 settings-browse = 📁 選択...
+settings-log-limit-section = ログ制限設定
+settings-max-display-bytes = 表示データ制限 (バイト):
+settings-max-log-lines = ログ最大行数 (行):
+settings-layout-section = レイアウト設定
+settings-reset-layout-btn = ウィンドウ・配置の初期化
 settings-close = 閉じる
 settings-reset = 設定を初期化
 settings-reset-confirm-title = 初期化の確認
 settings-reset-confirm-msg = 設定を初期化してもよろしいですか？初期化後にアプリは自動的に再起動します。
 settings-ok = OK
 settings-cancel = キャンセル
+dialog-error-title = エラー
+dialog-format-change-title = フォーマット変更の確認
+dialog-format-change-msg = 現在のペイロードデータを変換できません。続行すると、変更先プロトコルの設定は初期値にリセットされます。クリアして切り替えますか？
+dialog-yes = はい
+dialog-no = いいえ
 
 # Collections View
 collections-new = + 新規作成
@@ -110,9 +129,21 @@ el-deoj-preset-custom = カスタムオブジェクト...
 
 el-label-esv = サービスコード (ESV):
 el-esv-preset-get = Get (0x62 - プロパティ値読み出し要求)
+el-esv-preset-getres = Get_Res (0x72 - プロパティ値読み出し応答)
 el-esv-preset-setc = SetC (0x61 - プロパティ値書き込み要求・応答あり)
+el-esv-preset-setcsna = SetC_SNA (0x71 - プロパティ値書き込み不可応答)
 el-esv-preset-seti = SetI (0x60 - プロパティ値書き込み要求・応答なし)
+el-esv-preset-setisna = SetI_SNA (0x70 - プロパティ値書き込み不可応答)
+el-esv-preset-infreq = INF_REQ (0x63 - プロパティ値通知要求)
 el-esv-preset-inf = INF (0x73 - プロパティ値通知)
+el-esv-preset-infsna = INF_SNA (0x74 - プロパティ値通知不可応答)
+el-esv-preset-infc = INFC (0x7A - プロパティ値通知（応答要）)
+el-esv-preset-infcres = INFC_Res (0x7B - プロパティ値通知応答)
+el-esv-preset-setget = SetGet (0x6E - プロパティ値書き込み・読み出し要求)
+el-esv-preset-setgetres = SetGet_Res (0x7E - プロパティ値書き込み・読み出し応答)
+el-esv-preset-setgetsna = SetGet_SNA (0x7F - プロパティ値書き込み・読み出し不可応答)
+el-esv-preset-setres = Set_Res (0x71 - プロパティ値書き込み応答)
+el-esv-preset-setires = SetI_Res (0x74 - プロパティ値書き込み応答（応答不要）)
 
 el-label-epc = プロパティコード (EPC):
 el-epc-preset-status = 動作状態 (0x80)
@@ -125,11 +156,13 @@ el-edt-on = ON (30)
 el-edt-off = OFF (31)
 
 el-btn-generate = ⚙ ECHONET Lite 16進データを生成して挿入
+el-btn-add-epc = + プロパティを追加
 el-err-prefix = ECHONET Lite ビルダーエラー: { $msg }
 
 # Composer Tab
 composer-dest-addr = 送信先アドレス:
 composer-payload-format = ペイロード形式:
+composer-protocol-label = プロトコル:
 composer-format-text = テキスト (UTF-8)
 composer-format-hex = 16進数 (スペース可)
 composer-payload-content = ペイロード内容:
@@ -145,18 +178,42 @@ composer-btn-save = 💾 保存
 composer-save-default-col = マイリクエスト
 composer-save-created-req = リクエスト { $idx }
 
+composer-ip-preset-section = プリセット
+composer-ip-preset-nif-bcast = NIF ブロードキャスト
+composer-ip-history-section = 履歴
+
+composer-port-preset-section = プリセット
+composer-port-preset-echonet = ECHONET Lite : 3610
+composer-port-preset-syslog = Syslog : 514
+composer-port-preset-snmp = SNMP : 161
+
 # Log Viewer Tab
 log-btn-clear = 🗑 クリア
+log-ctx-copy-csv = CSVとしてコピー
+log-ctx-copy-json = JSONとしてコピー
 log-btn-save = 💾 ログ保存
 log-btn-save-tip = 選択した形式でログをエクスポートします
 log-checkbox-autoscroll = 自動スクロール
-log-label-ip-filter = IPフィルター:
+log-label-ip-filter = フィルター:
+log-filter-apply-btn = 適用
+log-filter-tooltip = パケットフィルターの使い方:
+  - port == <ポート>: 送信元または送信先ポート
+  - srcport == <ポート>: 送信元ポートのみ
+  - dstport == <ポート>: 送信先ポートのみ
+  - ip == <IP>: 送信元または送信先IP (例: 192.168.3.* ワイルドカード可)
+  - payload == <16進データ>: ペイロード完全一致 (例: 010203 または 01:02:03)
+  - payload[1:3] == <16進データ>: ペイロードのスライス一致
+  - payload matches "<正規表現>": ペイロードテキストの正規表現マッチ (大文字小文字無視)
+  - and / or / ( ): 複数条件の論理結合
+  - 数字で始まる場合は、暗黙的にIPフィルターとして動作します
 log-hdr-no = No.
 log-hdr-time = 時間
 log-hdr-type = タイプ
-log-hdr-ip = IP
-log-hdr-port = ポート
-log-hdr-length = 長さ
+log-hdr-source-ip = 送信元IP
+log-hdr-send-port = 送信元ポート
+log-hdr-dest-ip = 送信先IP
+log-hdr-recv-port = 送信先ポート
+log-hdr-length = データ長
 log-hdr-info = 情報 (プレビュー)
 log-save-success = ログが正常に { $path } に保存されました
 log-save-fail = ログの保存に失敗しました: { $msg }
@@ -164,10 +221,10 @@ log-save-fail = ログの保存に失敗しました: { $msg }
 # Inspector Panel
 ins-label-timestamp = タイムスタンプ: { $ts }
 ins-label-sent-to = 送信先:
-ins-label-received-from = 受信元:
+ins-label-received-from = 送信元:
 ins-label-event-target = イベント対象:
 ins-label-error-target = エラー対象:
-ins-label-size = サイズ: { $len } バイト
+ins-label-size = データ長: { $len } B
 ins-label-decode-as = プロトコル解析:
 ins-proto-raw = 🔌 Raw (16進数)
 ins-proto-ascii = 📝 テキスト (ASCII)
@@ -251,6 +308,60 @@ mc-hdr-multicast-addr = グループ
 mc-hdr-interface-addr = インターフェース
 mc-btn-leave = 離脱
 mc-err-empty-fields = マルチキャストアドレスとインターフェースアドレスは空にできません。
+
+# Sockets Window / Dropdown
+sockets-window-title = 🔌 ソケットマネージャー
+sockets-btn-add = ➕ ソケット追加
+sockets-lbl-name = 名前:
+sockets-tooltip-delete = このソケットを削除する
+sockets-navbar-btn-list = 🔌 ソケット...
+
+# Syslog & SNMP Inspector
+ins-proto-syslog = 📝 Syslog
+ins-proto-snmp = 📡 SNMP
+ins-syslog-rfc = 規格:
+ins-syslog-priority = 優先度 (Priority):
+ins-syslog-facility = ファシリティ:
+ins-syslog-severity = 重要度 (Severity):
+ins-syslog-timestamp = タイムスタンプ:
+ins-syslog-hostname = ホスト名:
+ins-syslog-appname = アプリ名:
+ins-syslog-procid = プロセスID:
+ins-syslog-msgid = メッセージID:
+ins-syslog-message = メッセージ:
+
+ins-snmp-version = バージョン:
+ins-snmp-community = コミュニティ名:
+ins-snmp-pdutype = PDU タイプ:
+ins-snmp-reqid = リクエスト ID:
+ins-snmp-errstatus = エラーステータス:
+ins-snmp-errindex = エラーインデックス:
+ins-snmp-varbinds = 変数バインドリスト (VarBinds):
+
+# Syslog & SNMP Helper
+syslog-helper-checkbox = 📝 Syslog ビルダー
+snmp-helper-checkbox = 📡 SNMP ビルダー
+
+syslog-version = RFC バージョン:
+syslog-auto-ts = タイムスタンプ自動生成
+syslog-hostname-lbl = ホスト名:
+syslog-appname-lbl = アプリ名:
+syslog-procid-lbl = プロセスID:
+syslog-msgid-lbl = メッセージID:
+syslog-msg-lbl = メッセージ:
+syslog-btn-generate = Syslog 生成
+
+snmp-version-lbl = SNMP バージョン:
+snmp-community-lbl = コミュニティ:
+snmp-pdutype-lbl = PDU タイプ:
+snmp-reqid-lbl = リクエスト ID:
+snmp-errstatus-lbl = エラーステータス:
+snmp-errindex-lbl = エラーインデックス:
+snmp-varbind-add = ➕ 変数を追加
+snmp-varbind-oid = OID:
+snmp-varbind-type = 型:
+snmp-varbind-val = 値:
+snmp-btn-generate = SNMP 生成
 
 
 

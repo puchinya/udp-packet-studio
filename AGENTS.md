@@ -121,7 +121,28 @@ To maintain visual consistency and support various OS/font configurations (espec
 - **For emojis without monochrome glyphs:**
   - Replace them with clean monochrome text symbols (e.g., replace `🟢` and `🔴` with `●`, and replace `➕` with `+`).
 
+### 4.4 Theme Support Guidelines (ライト・ダークテーマとシステム設定のガイドライン)
+- **テーマ設定の種類**: アプリケーションは「システム設定 (System)」「ライト (Light)」「ダーク (Dark)」の3つのテーマ設定をサポートします。デフォルトは「システム設定」です。
+- **システム設定時の挙動**: ユーザーが「システム設定」を選択している場合、OS側の外観モード設定（ライト/ダーク）の変更を検知し、アプリケーションのテーマを動的に追従させて切り替える必要があります。
+- **テーマ設定の適用ルール**: 
+  - フォントやテキストスタイルなどの共通設定は初期化時（`MainApp::new`）にのみ実行します。
+  - カラーテーマ（Visuals）の設定のみを `styling::apply_theme(ctx, theme)` として分離し、設定変更時やシステムテーマ変更時に動的に再適用できるようにします。
+  - `MainApp` 構造体内に `last_applied_theme: Option<AppTheme>` フィールドを保持し、毎フレームの監視処理における不要なテーマ再適用処理（Visualsのオーバーヘッド）を防止します。
+- **ライトテーマの配色方針**:
+  - `egui::Visuals::light()` をベースとしつつ、ダークテーマのトーンと調和するプレミアムなスレートライト（`#F5F7FA` 付近）の配色とします。
+  - 選択やフォーカスのアクセントカラー（インディゴ系 `#4F6EF2` など）は、視認性を維持しつつダークテーマと一貫性を持たせます。
+
+### 4.5 ComboBox/Dropdown Selection Highlight (カスタム選択時におけるComboBoxのハイライト表示)
+ComboBox（プルダウンメニュー）で選択される項目がアクティブな場合、`selectable_value`（TextやRawなどの単一選択ボタン）と同様に、ComboBoxボタン自体が選択中であることを視覚的に表すためにハイライト表示（テーマの選択色 background fill）を行います。
+
+- **実装方法**:
+  1. ComboBoxの現在の値が選択中のカスタム値であるか判定する。
+  2. 選択中である場合、`ui.visuals_mut().widgets.inactive`（および必要に応じて `widgets.hovered`）の `bg_fill` と `fg_stroke` を一時的に `visuals.selection.bg_fill` および `visuals.selection.stroke` に上書きする。
+  3. `ComboBox::show_ui` を呼び出し、その中のプルダウンリスト描画用クロージャの先頭で、一時変更したビジュアルを元のビジュアル（`original_visuals`）に戻す。これにより、プルダウン内の各項目が意図せずハイライトされるのを防ぐ。
+  4. ComboBox描画後、親 `ui` のビジュアルを元の状態に戻す。
+
 ---
+
 
 
 ## 📂 5. File Splitting & Code Organization
@@ -187,8 +208,42 @@ To align with Rust's best practices and keep the main codebase modular and clean
 ## 🐙 8. Git & Version Control Practices
 
 To ensure user control over the codebase and repository:
-- **Do NOT commit (`git commit`) or push (`git push`) automatically.**
-- All changes should be made to the local files. Notify the user of the modified files so they can inspect, commit, and push them manually.
+- **Do NOT commit (`git commit`) or push (`git push`) directly to main/develop branches (e.g. `develop_v1.1.X`, `master`).**
+- **Always use feature branches**: If the user requests to push or commit changes, or when creating a pull request, you must first create a separate feature branch (e.g., `feature/...`).
+- Make all changes in the feature branch and push that branch to the remote repository. Notify the user of the branch name.
+
+---
+
+## 📋 9. 要望整理とGitHub Issue自動作成の義務 (Requirements Refinement & Auto Issue Creation)
+
+ユーザーから新機能の追加やバグ修正などの新たな開発タスクを依頼された際は、**実際のコード変更や実装を開始する前に、必ず以下のプロセスを自律的に実行してください。** ユーザーから個別の指示がない場合でも、この挙動をデフォルトとします。
+
+- **要望の整理とタスクの切り出し**:
+  - 依頼内容を分析し、修正対象 of the fileや設計案、具体的な実装ToDoリスト（Markdownのチェックボックス形式）を整理します。
+- **マイルストーン情報の読み込み**:
+  - ローカルの `.agents/active_milestone.json` が存在する場合はその情報をロードし、記述されているアクティブなマイルストーン名およびマイルストーン番号（`number`）を取得します。
+- **GitHub Issueの自動起票**:
+  - GitHub MCPサーバーの `issue_write` ツールを使用し、整理した要件とToDoリストを本文に含めたIssueをGitHub上に自動で作成します。この際、取得したマイルストーン番号を必ず紐付けます。
+- **Issue URLの提示**:
+  - 起票完了後、作成されたGitHubのIssue URLをユーザーに提示し、タスクのスコープに合意を得たうえで、コードの編集（実装ステップ）へと移行します。
+- **実装完了時のPull Request自動作成とIssue紐付け (PR-only Pushes)**:
+  - コードの修正とテスト確認が完了した段階で、あるいはユーザーからプッシュ指示があった際は、**絶対に `develop_v1.1.X` などの共有ブランチへ直プッシュしてはいけません**。
+  - 必ず個別の作業用ブランチ（例: `feature/...`）を切ってプッシュし、GitHub MCPサーバーの `create_pull_request` ツールを使用して Pull Request を作成してください。
+  - PRを作成する際は、本文（body）の冒頭に **`Closes #<Issue番号>`** を記述し、対応するIssueとPRを自動で紐付けます（PRマージ時に自動で該当Issueがクローズされます）。
+
+---
+
+## 📸 10. GUI動作確認・スクリーンショット撮影時のマナー (GUI Verification & Screen Capture Best Practices)
+
+GUI アプリケーション（`udp-packet-studio`）における実装後の動作検証は、ユーザーの作業の邪魔にならないようにするため、以下のルールを厳守してください。
+
+- **エージェントによる自動起動およびフォーカス奪取の絶対禁止**:
+  - 実機上でエージェントが自律的に `cargo run` を起動してフォーカスを奪う（`activate` や `frontmost` の設定）、あるいはスクリーンショットを強制撮影するスクリプトを走らせることは**厳禁**です。キー入力などの作業が妨げられるため、絶対に行わないでください。
+- **動作確認の進め方**:
+  - GUI レイアウトや外観、操作確認（特にウィンドウリサイズ時の折り返し挙動など）については、エージェント側でコードを正しく配置・修正したあと、**ユーザーに手動での起動と目視確認を依頼**してください。
+  - テストコードの作成や `cargo test` による自動ロジックテストは通常通り行いますが、実際の画面表示のチェックは常にユーザーの操作と確認を優先してください。
+
+
 
 
 

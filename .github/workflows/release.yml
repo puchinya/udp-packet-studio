@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  issues: read
+  pull-requests: read
 
 jobs:
   build-windows:
@@ -25,7 +27,13 @@ jobs:
       - name: Compress Release
         shell: pwsh
         run: |
-          Compress-Archive -Path target/release/udp-packet-studio.exe, README.md, LICENSE.md -DestinationPath udp-packet-studio-windows.zip
+          mkdir staging
+          cp target/release/udp-packet-studio.exe staging/
+          cp README.md staging/
+          cp LICENSE.md staging/
+          cp -Recurse assets staging/assets
+          Compress-Archive -Path staging/* -DestinationPath udp-packet-studio-windows.zip
+
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -117,12 +125,39 @@ jobs:
         with:
           name: macos-artifact
 
+      - name: Generate Release Notes from Milestone Issues
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          echo "Looking for milestone matching tag: $TAG_NAME"
+          MILESTONE_NUMBER=$(gh api repos/${{ github.repository }}/milestones \
+            --jq ".[] | select(.title == \"$TAG_NAME\") | .number")
+          
+          if [ -z "$MILESTONE_NUMBER" ]; then
+            echo "No milestone found matching tag: $TAG_NAME"
+            echo "RELEASE_BODY=Release for $TAG_NAME" >> $GITHUB_ENV
+          else
+            echo "Found milestone #$MILESTONE_NUMBER"
+            ISSUES_JSON=$(gh api "repos/${{ github.repository }}/issues?milestone=$MILESTONE_NUMBER&state=closed")
+            
+            echo "## What's Changed in $TAG_NAME" > release_notes.md
+            echo "" >> release_notes.md
+            echo "$ISSUES_JSON" | jq -r '.[] | "- \(.title) (#\(.number)) @\(.user.login)"' >> release_notes.md
+            
+            echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+            cat release_notes.md >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             udp-packet-studio-windows.zip
             udp-packet-studio.dmg
+          body: ${{ env.RELEASE_BODY }}
           draft: false
           prerelease: false
         env:

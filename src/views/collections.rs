@@ -1,6 +1,6 @@
 use eframe::egui;
 use crate::UdpStudioState;
-use crate::types::{Collection, PacketDefinition, PayloadType, generate_id, validate_payload};
+use crate::types::{Collection, PacketDefinition, PayloadType, generate_id, validate_payload, FormatChangeResult, parse_hex_to_bytes};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct YamlRequest {
@@ -231,19 +231,61 @@ impl UdpStudioState {
             
             // 2. Detailed Request Editor Form (Bottom Half)
             let mut req_clone = None;
-            if let Some(selected_id) = &self.selected_request_id {
+            if let Some(selected_id) = self.selected_request_id.clone() {
+                if self.last_selected_request_id.as_ref() != Some(&selected_id) {
+                    self.last_selected_request_id = Some(selected_id.clone());
+                    let mut found_req = None;
+                    if let Some(r) = self.collections.iter().flat_map(|c| &c.requests).find(|r| r.id == selected_id) {
+                        found_req = Some((r.payload_type, r.payload.clone()));
+                    }
+
+                    if let Some((payload_type, payload_str)) = found_req {
+                        let bytes = match payload_type {
+                            PayloadType::Text => payload_str.as_bytes().to_vec(),
+                            PayloadType::Hex => parse_hex_to_bytes(&payload_str).unwrap_or_default(),
+                            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                                self.generate_helper_bytes(true, payload_type).unwrap_or_default()
+                            }
+                        };
+                        self.try_parse_payload_to_helper(true, payload_type, &bytes);
+                        if payload_type == PayloadType::EchonetLite || payload_type == PayloadType::Syslog || payload_type == PayloadType::Snmp {
+                            self.collections_selected_proto = payload_type;
+                        }
+                    }
+                }
+
                 for col in &self.collections {
-                    if let Some(req) = col.requests.iter().find(|r| &r.id == selected_id) {
+                    if let Some(req) = col.requests.iter().find(|r| r.id == selected_id) {
                         req_clone = Some(req.clone());
                         break;
                     }
                 }
+            } else {
+                self.last_selected_request_id = None;
             }
             
             if let Some(mut req) = req_clone {
                 ui.separator();
                 ui.heading(tr("collections-edit-title"));
                 ui.add_space(4.0);
+
+                let is_helper_active = req.payload_type == PayloadType::EchonetLite
+                    || req.payload_type == PayloadType::Syslog
+                    || req.payload_type == PayloadType::Snmp;
+
+                if is_helper_active {
+                    if let Ok(bytes) = self.generate_helper_bytes(true, req.payload_type) {
+                        req.payload = match req.payload_type {
+                            PayloadType::EchonetLite | PayloadType::Snmp => {
+                                bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                            }
+                            PayloadType::Syslog => {
+                                String::from_utf8(bytes).unwrap_or_default()
+                            }
+                            _ => String::new(),
+                        };
+                    }
+                }
                 
                 egui::ScrollArea::vertical().id_salt("collection_editor_scroll").show(ui, |ui| {
                     egui::Grid::new("collection_req_edit_grid")
@@ -257,17 +299,59 @@ impl UdpStudioState {
                             ui.end_row();
                             ui.label(tr("collections-edit-target-ip"));
                             ui.horizontal(|ui| {
-                                let mut ip_chosen = None;
+                                let mut ip_chosen: Option<String> = None;
                                 ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
                                 let edit_ip = ui.add(egui::TextEdit::singleline(&mut req.target_ip).desired_width(120.0));
                                 if edit_ip.changed() {
                                     needs_save = true;
                                 }
                                 ui.menu_button("▾", |ui| {
-                                    ui.set_min_width(120.0);
-                                    if self.composer_ip_history.is_empty() {
-                                        ui.weak("No history");
-                                    } else {
+                                    ui.set_min_width(220.0);
+
+                                    // ── Presets ──────────────────────────────────────
+                                    ui.strong(tr("composer-ip-preset-section"));
+                                    ui.separator();
+
+                                    if ui.button("127.0.0.1  (Loopback)").clicked() {
+                                        ip_chosen = Some("127.0.0.1".to_string());
+                                        ui.close();
+                                    }
+                                    if ui.button("255.255.255.255  (Broadcast)").clicked() {
+                                        ip_chosen = Some("255.255.255.255".to_string());
+                                        ui.close();
+                                    }
+                                    if ui.button("224.0.23.0  (ECHONET Lite Multicast)").clicked() {
+                                        ip_chosen = Some("224.0.23.0".to_string());
+                                        ui.close();
+                                    }
+
+                                    // NIF broadcast addresses
+                                    if let Ok(ifaces) = get_if_addrs::get_if_addrs() {
+                                        let mut shown_any = false;
+                                        for iface in &ifaces {
+                                            if let get_if_addrs::IfAddr::V4(ref v4) = iface.addr {
+                                                if let Some(broadcast) = v4.broadcast {
+                                                    let bc_str = broadcast.to_string();
+                                                    if bc_str == "127.255.255.255" { continue; }
+                                                    if !shown_any {
+                                                        ui.separator();
+                                                        ui.weak(tr("composer-ip-preset-nif-bcast"));
+                                                        shown_any = true;
+                                                    }
+                                                    let label = format!("{}  ({})", bc_str, iface.name);
+                                                    if ui.button(&label).clicked() {
+                                                        ip_chosen = Some(bc_str);
+                                                        ui.close();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // ── History ──────────────────────────────────────
+                                    if !self.composer_ip_history.is_empty() {
+                                        ui.separator();
+                                        ui.weak(tr("composer-ip-history-section"));
                                         for h in &self.composer_ip_history {
                                             if ui.button(h).clicked() {
                                                 ip_chosen = Some(h.clone());
@@ -293,8 +377,8 @@ impl UdpStudioState {
                                 }
                                 ui.menu_button("▾", |ui| {
                                     ui.set_min_width(150.0);
-                                    ui.menu_button("Presets", |ui| {
-                                        if ui.button("ECHONET Lite : 3610").clicked() {
+                                    ui.menu_button(tr("composer-port-preset-section"), |ui| {
+                                        if ui.button(tr("composer-port-preset-echonet")).clicked() {
                                             port_chosen = Some("3610".to_string());
                                             ui.close();
                                         }
@@ -315,72 +399,213 @@ impl UdpStudioState {
                                 }
                             });
                             ui.end_row();
-                            ui.label(tr("collections-edit-payload"));
-                              ui.horizontal(|ui| {
-                                  let r1 = ui.radio_value(&mut req.payload_type, PayloadType::Text, "Text");
-                                  ui.add_space(10.0);
-                                  let r2 = ui.radio_value(&mut req.payload_type, PayloadType::Hex, "Hex")
-                                      .on_hover_text(tr("collections-edit-hex-tip"));
-                                  if r1.changed() || r2.changed() {
-                                      needs_save = true;
-                                  }
-                              });
-                             ui.end_row();
-                         });
-                     
-                     ui.add_space(6.0);
-                     let current_target = format!("{}:{}", req.target_ip, req.target_port);
-                     if let Some((payload, format, target)) = self.show_echonet_lite_helper(ui, &current_target) {
-                         req.payload = payload;
-                         req.payload_type = format;
-                         if let Some(idx) = target.rfind(':') {
-                             let (ip, port) = target.split_at(idx);
-                             req.target_ip = ip.to_string();
-                             req.target_port = port[1..].to_string();
-                         } else {
-                             req.target_ip = target;
-                             req.target_port = "3610".to_string();
-                         }
-                         needs_save = true;
-                     }
-                     
-                     ui.add_space(6.0);
-                    let response = ui.add(
-                        egui::TextEdit::multiline(&mut req.payload)
-                            .font(egui::TextStyle::Monospace)
-                            .code_editor()
-                            .desired_rows(4)
-                            .desired_width(ui.available_width())
-                    );
-                    if response.changed() {
-                        needs_save = true;
-                    }
-   
-                    let payload_validation = validate_payload(&req.payload, req.payload_type);
-                    if let Err(ref err_msg) = payload_validation {
-                        ui.add_space(4.0);
-                        let mut args = std::collections::HashMap::new();
-                        args.insert(std::borrow::Cow::Borrowed("msg"), err_msg.clone().into());
-                        ui.colored_label(
-                            egui::Color32::from_rgb(255, 100, 100),
-                            tr_args("collections-edit-invalid-payload", &args)
-                        );
-                    }
-                    
-                    ui.add_space(8.0);
+                        });
+
+                    ui.add_space(6.0);
+
                     ui.horizontal(|ui| {
-                        if ui.button(tr("collections-edit-load")).clicked() {
-                            load_to_composer = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
+                        ui.label(tr("collections-edit-format"));
+                        ui.add_space(8.0);
+
+                        let avail_w = ui.available_width();
+                        let mut selected_format = match req.payload_type {
+                            PayloadType::Text => 0,
+                            PayloadType::Hex => 1,
+                            _ => 2,
+                        };
+
+                        let mut r1_changed = false;
+                        let mut r2_changed = false;
+                        let mut r3_changed = false;
+                        let mut dropdown_changed_to = None;
+
+                        if avail_w < 280.0 {
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    let r1 = ui.radio_value(&mut selected_format, 0, "Text");
+                                    r1_changed = r1.changed();
+                                    ui.add_space(10.0);
+                                    let r2 = ui.radio_value(&mut selected_format, 1, "Hex")
+                                        .on_hover_text(tr("collections-edit-hex-tip"));
+                                    r2_changed = r2.changed();
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                    let r3 = ui.radio_value(&mut selected_format, 2, "");
+                                    r3_changed = r3.changed();
+
+                                    let active_proto = match req.payload_type {
+                                        PayloadType::EchonetLite => PayloadType::EchonetLite,
+                                        PayloadType::Syslog => PayloadType::Syslog,
+                                        PayloadType::Snmp => PayloadType::Snmp,
+                                        _ => self.collections_selected_proto,
+                                    };
+                                    let current_proto_name = match active_proto {
+                                        PayloadType::EchonetLite => "ECHONET Lite",
+                                        PayloadType::Syslog => "Syslog",
+                                        PayloadType::Snmp => "SNMP",
+                                        _ => "ECHONET Lite",
+                                    };
+
+                                    egui::ComboBox::from_id_salt("collection_protocol_select")
+                                        .selected_text(current_proto_name)
+                                        .width(120.0)
+                                        .show_ui(ui, |ui| {
+                                            for proto in &self.protocol_mru {
+                                                if ui.selectable_label(current_proto_name == proto, proto).clicked() {
+                                                    dropdown_changed_to = Some(proto.clone());
+                                                }
+                                            }
+                                        });
+                                });
+                            });
+                        } else {
+                            let r1 = ui.radio_value(&mut selected_format, 0, "Text");
+                            r1_changed = r1.changed();
+                            ui.add_space(10.0);
+                            let r2 = ui.radio_value(&mut selected_format, 1, "Hex")
+                                .on_hover_text(tr("collections-edit-hex-tip"));
+                            r2_changed = r2.changed();
+                            ui.add_space(10.0);
+
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                let r3 = ui.radio_value(&mut selected_format, 2, "");
+                                r3_changed = r3.changed();
+
+                                let active_proto = match req.payload_type {
+                                    PayloadType::EchonetLite => PayloadType::EchonetLite,
+                                    PayloadType::Syslog => PayloadType::Syslog,
+                                    PayloadType::Snmp => PayloadType::Snmp,
+                                    _ => self.collections_selected_proto,
+                                };
+                                let current_proto_name = match active_proto {
+                                    PayloadType::EchonetLite => "ECHONET Lite",
+                                    PayloadType::Syslog => "Syslog",
+                                    PayloadType::Snmp => "SNMP",
+                                    _ => "ECHONET Lite",
+                                };
+
+                                egui::ComboBox::from_id_salt("collection_protocol_select")
+                                    .selected_text(current_proto_name)
+                                    .width(120.0)
+                                    .show_ui(ui, |ui| {
+                                        for proto in &self.protocol_mru {
+                                            if ui.selectable_label(current_proto_name == proto, proto).clicked() {
+                                                dropdown_changed_to = Some(proto.clone());
+                                            }
+                                        }
+                                    });
+                            });
                         }
-                        let is_payload_valid = payload_validation.is_ok();
-                        let send_btn = ui.add_enabled(
-                            is_payload_valid,
-                            egui::Button::new(tr("collections-edit-send"))
-                        );
-                        if send_btn.clicked() {
-                            send_trigger = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
+
+                        if r1_changed || r2_changed || r3_changed {
+                            let to_type = match selected_format {
+                                0 => PayloadType::Text,
+                                1 => PayloadType::Hex,
+                                _ => {
+                                    self.collections_selected_proto
+                                }
+                            };
+                            let res = self.change_payload_format(true, Some(req.id.clone()), req.payload_type, to_type, &req.payload);
+                            match res {
+                                FormatChangeResult::Immediate { new_payload } => {
+                                    req.payload_type = to_type;
+                                    req.payload = new_payload;
+                                    if selected_format == 2 {
+                                        self.collections_selected_proto = to_type;
+                                        let proto_name = match to_type {
+                                            PayloadType::EchonetLite => "ECHONET Lite",
+                                            PayloadType::Syslog => "Syslog",
+                                            PayloadType::Snmp => "SNMP",
+                                            _ => "",
+                                        };
+                                        if !proto_name.is_empty() {
+                                            self.update_protocol_mru(proto_name);
+                                        }
+                                    }
+                                    needs_save = true;
+                                }
+                                FormatChangeResult::Pending(pending) => {
+                                    self.collection_pending_format_change = Some(pending);
+                                }
+                            }
+                        }
+
+                        if let Some(new_proto) = dropdown_changed_to {
+                            let to_type = match new_proto.as_str() {
+                                "ECHONET Lite" => PayloadType::EchonetLite,
+                                "Syslog" => PayloadType::Syslog,
+                                "SNMP" => PayloadType::Snmp,
+                                _ => PayloadType::EchonetLite,
+                            };
+                            self.collections_selected_proto = to_type;
+                            let res = self.change_payload_format(true, Some(req.id.clone()), req.payload_type, to_type, &req.payload);
+                            match res {
+                                FormatChangeResult::Immediate { new_payload } => {
+                                    req.payload_type = to_type;
+                                    req.payload = new_payload;
+                                    self.collections_selected_proto = to_type;
+                                    self.update_protocol_mru(&new_proto);
+                                    needs_save = true;
+                                }
+                                FormatChangeResult::Pending(pending) => {
+                                    self.collection_pending_format_change = Some(pending);
+                                }
+                            }
                         }
                     });
+                      
+                      ui.add_space(6.0);
+
+                      if req.payload_type == PayloadType::EchonetLite {
+                          self.show_echonet_lite_helper(ui, true);
+                      } else if req.payload_type == PayloadType::Syslog {
+                          self.show_syslog_helper(ui, true);
+                      } else if req.payload_type == PayloadType::Snmp {
+                          self.show_snmp_helper(ui, true);
+                      }
+                      
+                      ui.add_space(6.0);
+                      let response = ui.add(
+                          egui::TextEdit::multiline(&mut req.payload)
+                              .font(egui::TextStyle::Monospace)
+                              .code_editor()
+                              .desired_rows(4)
+                              .desired_width(ui.available_width())
+                              .interactive(!is_helper_active)
+                      );
+                      if response.changed() {
+                          needs_save = true;
+                      }
+    
+                      let payload_validation = validate_payload(&req.payload, req.payload_type);
+                      if let Err(ref err_msg) = payload_validation {
+                          ui.add_space(4.0);
+                          let mut args = std::collections::HashMap::new();
+                          args.insert(std::borrow::Cow::Borrowed("msg"), err_msg.clone().into());
+                          ui.add(
+                              egui::Label::new(
+                                  egui::RichText::new(tr_args("collections-edit-invalid-payload", &args))
+                                      .color(egui::Color32::from_rgb(255, 100, 100))
+                              ).wrap()
+                          );
+                      }
+                      
+                      ui.add_space(8.0);
+                      ui.horizontal(|ui| {
+                          if ui.button(tr("collections-edit-load")).clicked() {
+                              load_to_composer = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
+                          }
+                          let is_payload_valid = payload_validation.is_ok();
+                          let send_btn = ui.add_enabled(
+                              is_payload_valid,
+                              egui::Button::new(tr("collections-edit-send"))
+                          );
+                          if send_btn.clicked() {
+                              send_trigger = Some((format!("{}:{}", req.target_ip, req.target_port), req.payload_type, req.payload.clone()));
+                          }
+                      });
                 });
                 
                 // Save the modified request back to the collection mutably (outside borrow loops)
@@ -482,7 +707,7 @@ impl UdpStudioState {
                     target_ip: "127.0.0.1".to_string(),
                     target_port: "9000".to_string(),
                     payload_type: PayloadType::Text,
-                    payload: "New Request Payload".to_string(),
+                    payload: "".to_string(),
                 });
                 col.is_expanded = true;
                 self.selected_request_id = Some(req_id);
@@ -527,7 +752,7 @@ impl UdpStudioState {
                 let (ip, port) = target.split_at(idx);
                 self.add_to_composer_history(ip.to_string(), port[1..].to_string());
             }
-            self.send_packet(&target, p_type, &p_data);
+            self.send_packet(&target, p_type, &p_data, true);
         }
  
         if import_collection {
