@@ -1067,10 +1067,7 @@ impl UdpStudioState {
         
         match data_res {
             Ok(data) => {
-                if data.is_empty() {
-                    self.add_system_error("Cannot send empty packet.".to_string());
-                    return;
-                }
+
                 self.udp_worker.send(UdpCommand::Send {
                     id: self.selected_socket_id.clone(),
                     target: target.to_string(),
