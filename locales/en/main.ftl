@@ -62,6 +62,10 @@ settings-reset-confirm-msg = Are you sure you want to reset all settings? The ap
 settings-ok = OK
 settings-cancel = Cancel
 dialog-error-title = Error
+dialog-format-change-title = Format Change
+dialog-format-change-msg = The current payload cannot be converted. If you proceed, the helper settings for the new protocol will be reset to defaults. Clear and continue?
+dialog-yes = Yes
+dialog-no = No
 
 # Collections View
 collections-new = + New
@@ -158,6 +162,7 @@ el-err-prefix = ECHONET Lite builder error: { $msg }
 # Composer Tab
 composer-dest-addr = Destination Address:
 composer-payload-format = Payload Format:
+composer-protocol-label = Protocol:
 composer-format-text = Text (UTF-8)
 composer-format-hex = Hex (Spaces optional)
 composer-payload-content = Payload Content:

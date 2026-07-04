@@ -20,7 +20,7 @@ use egui_dock::{DockArea, DockState};
 use egui_dock::tab_viewer::OnCloseResponse;
 
 use udp_worker::{UdpWorker, UdpCommand, UdpEvent};
-use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand, AboutTab, SettingsTab, ElBuilderProperty, AppTheme};
+use types::{Tab, LogEntry, LogDirection, PayloadType, parse_hex_to_bytes, Collection, MulticastGroup, InspectorProtocol, LogExportFormat, LoggerCommand, AboutTab, SettingsTab, ElBuilderProperty, AppTheme, PendingFormatChange, FormatChangeResult};
 use config::SavedConfig;
 use styling::{setup_custom_styles, apply_theme};
 use locales::LanguageSetting;
@@ -42,6 +42,9 @@ pub fn get_local_interfaces() -> Vec<(String, String)> {
 pub struct UdpStudioState {
     pub collections: Vec<Collection>,
     pub selected_request_id: Option<String>,
+    pub last_selected_request_id: Option<String>,
+    pub composer_selected_proto: PayloadType,
+    pub collections_selected_proto: PayloadType,
     pub composer_selected_collection_idx: usize,
     
     // Composer tab inputs
@@ -134,6 +137,47 @@ pub struct UdpStudioState {
     pub settings_selected_proto_tab: usize,
     pub inspector_protocols_order: Vec<crate::types::InspectorProtocol>,
     pub preset_ports_order: Vec<crate::types::PresetPortItem>,
+    
+    // Independent helper states for collection request editing
+    pub req_el_tid: String,
+    pub req_el_seoj: String,
+    pub req_el_deoj_preset: usize,
+    pub req_el_deoj_custom: String,
+    pub req_el_deoj_eoj: String,
+    pub req_el_esv_preset: usize,
+    pub req_el_properties: Vec<ElBuilderProperty>,
+    pub req_el_show_helper: bool,
+
+    pub req_syslog_show_helper: bool,
+    pub req_syslog_protocol_version: usize,
+    pub req_syslog_facility: usize,
+    pub req_syslog_severity: usize,
+    pub req_syslog_auto_timestamp: bool,
+    pub req_syslog_timestamp: String,
+    pub req_syslog_hostname: String,
+    pub req_syslog_app_name: String,
+    pub req_syslog_proc_id: String,
+    pub req_syslog_msg_id: String,
+    pub req_syslog_msg: String,
+
+    pub req_snmp_show_helper: bool,
+    pub req_snmp_version: usize,
+    pub req_snmp_community: String,
+    pub req_snmp_pdu_type: usize,
+    pub req_snmp_request_id: i32,
+    pub req_snmp_error_status: i32,
+    pub req_snmp_error_index: i32,
+    pub req_snmp_varbinds: Vec<crate::types::SnmpVarBindState>,
+
+    // Protocol MRU
+    pub protocol_mru: Vec<String>,
+
+    // Pending format confirmation state
+    pub composer_pending_format_change: Option<PendingFormatChange>,
+    pub collection_pending_format_change: Option<PendingFormatChange>,
+
+    // Currently edited request ID
+    pub editing_request_id: Option<String>,
 }
 
 impl UdpStudioState {
@@ -244,6 +288,7 @@ impl UdpStudioState {
         self.settings_selected_proto_tab = 0;
         self.inspector_protocols_order = def.inspector_protocols_order.clone();
         self.preset_ports_order = def.preset_ports_order.clone();
+        self.protocol_mru = def.protocol_mru.clone();
         self.enforce_log_limits();
         self.save_config();
         self.update_logger_config();
@@ -341,6 +386,7 @@ impl UdpStudioState {
                 protocol_config: self.protocol_config.clone(),
                 inspector_protocols_order: self.inspector_protocols_order.clone(),
                 preset_ports_order: self.preset_ports_order.clone(),
+                protocol_mru: self.protocol_mru.clone(),
             };
             config.save();
         }
@@ -358,6 +404,340 @@ impl UdpStudioState {
             listener_addr,
             bind_time,
         });
+    }
+
+    // Helper to generate raw bytes from protocol helper states
+    pub fn generate_helper_bytes(&self, is_req: bool, payload_type: PayloadType) -> Result<Vec<u8>, String> {
+        match payload_type {
+            PayloadType::Text | PayloadType::Hex => {
+                Err("Text/Hex are not helper protocols".to_string())
+            }
+            PayloadType::EchonetLite => {
+                if is_req {
+                    crate::types::generate_echonet_lite(&self.req_el_tid, &self.req_el_seoj, &self.req_el_deoj_custom, self.req_el_esv_preset, &self.req_el_properties)
+                } else {
+                    crate::types::generate_echonet_lite(&self.el_tid, &self.el_seoj, &self.el_deoj_custom, self.el_esv_preset, &self.el_properties)
+                }
+            }
+            PayloadType::Syslog => {
+                let s = if is_req {
+                    if self.req_syslog_protocol_version == 1 {
+                        crate::syslog::build_syslog_rfc5424(self.req_syslog_facility, self.req_syslog_severity, &self.req_syslog_timestamp, &self.req_syslog_hostname, &self.req_syslog_app_name, &self.req_syslog_proc_id, &self.req_syslog_msg_id, &self.req_syslog_msg)
+                    } else {
+                        crate::syslog::build_syslog_rfc3164(self.req_syslog_facility, self.req_syslog_severity, &self.req_syslog_timestamp, &self.req_syslog_hostname, &self.req_syslog_app_name, &self.req_syslog_msg)
+                    }
+                } else {
+                    if self.syslog_protocol_version == 1 {
+                        crate::syslog::build_syslog_rfc5424(self.syslog_facility, self.syslog_severity, &self.syslog_timestamp, &self.syslog_hostname, &self.syslog_app_name, &self.syslog_proc_id, &self.syslog_msg_id, &self.syslog_msg)
+                    } else {
+                        crate::syslog::build_syslog_rfc3164(self.syslog_facility, self.syslog_severity, &self.syslog_timestamp, &self.syslog_hostname, &self.syslog_app_name, &self.syslog_msg)
+                    }
+                };
+                Ok(s.into_bytes())
+            }
+            PayloadType::Snmp => {
+                if is_req {
+                    let version = if self.req_snmp_version == 0 { 0 } else { 1 };
+                    let pdu_type = match self.req_snmp_pdu_type {
+                        0 => 0xa0,
+                        1 => 0xa1,
+                        2 => 0xa3,
+                        3 => if version == 0 { 0xa4 } else { 0xa7 },
+                        _ => 0xa0,
+                    };
+                    crate::snmp::build_snmp(version, &self.req_snmp_community, pdu_type, self.req_snmp_request_id, self.req_snmp_error_status, self.req_snmp_error_index, &self.req_snmp_varbinds)
+                } else {
+                    let version = if self.snmp_version == 0 { 0 } else { 1 };
+                    let pdu_type = match self.snmp_pdu_type {
+                        0 => 0xa0,
+                        1 => 0xa1,
+                        2 => 0xa3,
+                        3 => if version == 0 { 0xa4 } else { 0xa7 },
+                        _ => 0xa0,
+                    };
+                    crate::snmp::build_snmp(version, &self.snmp_community, pdu_type, self.snmp_request_id, self.snmp_error_status, self.snmp_error_index, &self.snmp_varbinds)
+                }
+            }
+        }
+    }
+
+    // Helper to decode raw bytes into protocol helper states
+    pub fn try_parse_payload_to_helper(&mut self, is_req: bool, to_type: PayloadType, bytes: &[u8]) -> bool {
+        match to_type {
+            PayloadType::Text | PayloadType::Hex => true,
+            PayloadType::EchonetLite => {
+                if let Some((tid, seoj, deoj, esv_preset, properties)) = crate::types::parse_echonet_lite(bytes) {
+                    if is_req {
+                        self.req_el_tid = tid;
+                        self.req_el_seoj = seoj;
+                        self.req_el_deoj_custom = deoj;
+                        self.req_el_esv_preset = esv_preset;
+                        self.req_el_properties = properties;
+                    } else {
+                        self.el_tid = tid;
+                        self.el_seoj = seoj;
+                        self.el_deoj_custom = deoj;
+                        self.el_esv_preset = esv_preset;
+                        self.el_properties = properties;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            PayloadType::Syslog => {
+                if let Some(details) = crate::syslog::parse_syslog(bytes) {
+                    let protocol_version = if details.rfc == "RFC 5424" { 1 } else { 0 };
+                    if is_req {
+                        self.req_syslog_protocol_version = protocol_version;
+                        self.req_syslog_facility = details.facility as usize;
+                        self.req_syslog_severity = details.severity as usize;
+                        self.req_syslog_timestamp = details.timestamp;
+                        self.req_syslog_hostname = details.hostname;
+                        self.req_syslog_app_name = details.app_name;
+                        self.req_syslog_proc_id = details.proc_id;
+                        self.req_syslog_msg_id = details.msg_id;
+                        self.req_syslog_msg = details.message;
+                    } else {
+                        self.syslog_protocol_version = protocol_version;
+                        self.syslog_facility = details.facility as usize;
+                        self.syslog_severity = details.severity as usize;
+                        self.syslog_timestamp = details.timestamp;
+                        self.syslog_hostname = details.hostname;
+                        self.syslog_app_name = details.app_name;
+                        self.syslog_proc_id = details.proc_id;
+                        self.syslog_msg_id = details.msg_id;
+                        self.syslog_msg = details.message;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            PayloadType::Snmp => {
+                if let Ok(msg) = crate::snmp::parse_snmp(bytes) {
+                    let version = msg.version as usize;
+                    let pdu_type = match msg.pdu_type {
+                        0xa0 => 0,
+                        0xa1 => 1,
+                        0xa3 => 2,
+                        0xa4 | 0xa7 => 3,
+                        _ => 0,
+                    };
+                    
+                    let mut varbinds = Vec::new();
+                    for (oid, val) in msg.varbinds {
+                        let (value_type, value) = match val {
+                            crate::snmp::SnmpValue::Integer(v) => (crate::types::SnmpValueType::Integer, v.to_string()),
+                            crate::snmp::SnmpValue::OctetString(b) => {
+                                let s = String::from_utf8(b.clone()).unwrap_or_else(|_| {
+                                    b.iter().map(|x| format!("{:02X}", x)).collect::<Vec<String>>().join(" ")
+                                });
+                                (crate::types::SnmpValueType::OctetString, s)
+                            }
+                            crate::snmp::SnmpValue::ObjectId(o) => (crate::types::SnmpValueType::ObjectId, o),
+                            crate::snmp::SnmpValue::Null => (crate::types::SnmpValueType::Null, String::new()),
+                            crate::snmp::SnmpValue::IpAddress(ip) => (crate::types::SnmpValueType::IpAddress, ip.to_string()),
+                            crate::snmp::SnmpValue::Counter(v) => (crate::types::SnmpValueType::Counter32, v.to_string()),
+                            crate::snmp::SnmpValue::Gauge(v) => (crate::types::SnmpValueType::Gauge32, v.to_string()),
+                            crate::snmp::SnmpValue::TimeTicks(v) => (crate::types::SnmpValueType::TimeTicks, v.to_string()),
+                            _ => (crate::types::SnmpValueType::Null, String::new()),
+                        };
+                        varbinds.push(crate::types::SnmpVarBindState { oid, value_type, value });
+                    }
+                    
+                    if varbinds.is_empty() {
+                        varbinds.push(crate::types::SnmpVarBindState {
+                            oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                            value_type: crate::types::SnmpValueType::Null,
+                            value: String::new(),
+                        });
+                    }
+                    
+                    if is_req {
+                        self.req_snmp_version = version;
+                        self.req_snmp_community = msg.community;
+                        self.req_snmp_pdu_type = pdu_type;
+                        self.req_snmp_request_id = msg.request_id;
+                        self.req_snmp_error_status = msg.error_status;
+                        self.req_snmp_error_index = msg.error_index;
+                        self.req_snmp_varbinds = varbinds;
+                    } else {
+                        self.snmp_version = version;
+                        self.snmp_community = msg.community;
+                        self.snmp_pdu_type = pdu_type;
+                        self.snmp_request_id = msg.request_id;
+                        self.snmp_error_status = msg.error_status;
+                        self.snmp_error_index = msg.error_index;
+                        self.snmp_varbinds = varbinds;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    // Helper to clear/default protocol helper states
+    pub fn clear_helper_state(&mut self, is_req: bool, to_type: PayloadType) {
+        match to_type {
+            PayloadType::EchonetLite => {
+                if is_req {
+                    self.req_el_tid = "0001".to_string();
+                    self.req_el_seoj = "05FF01".to_string();
+                    self.req_el_deoj_preset = 0;
+                    self.req_el_deoj_custom = "013001".to_string();
+                    self.req_el_deoj_eoj = "0130".to_string();
+                    self.req_el_esv_preset = 0;
+                    self.req_el_properties = vec![ElBuilderProperty { epc: "80".to_string(), edt: String::new() }];
+                } else {
+                    self.el_tid = "0001".to_string();
+                    self.el_seoj = "05FF01".to_string();
+                    self.el_deoj_preset = 0;
+                    self.el_deoj_custom = "013001".to_string();
+                    self.el_deoj_eoj = "0130".to_string();
+                    self.el_esv_preset = 0;
+                    self.el_properties = vec![ElBuilderProperty { epc: "80".to_string(), edt: String::new() }];
+                }
+            }
+            PayloadType::Syslog => {
+                if is_req {
+                    self.req_syslog_protocol_version = 0;
+                    self.req_syslog_facility = 1;
+                    self.req_syslog_severity = 5;
+                    self.req_syslog_auto_timestamp = true;
+                    self.req_syslog_timestamp = String::new();
+                    self.req_syslog_hostname = "localhost".to_string();
+                    self.req_syslog_app_name = "udp-packet-studio".to_string();
+                    self.req_syslog_proc_id = "-".to_string();
+                    self.req_syslog_msg_id = "-".to_string();
+                    self.req_syslog_msg = "Hello, Syslog!".to_string();
+                } else {
+                    self.syslog_protocol_version = 0;
+                    self.syslog_facility = 1;
+                    self.syslog_severity = 5;
+                    self.syslog_auto_timestamp = true;
+                    self.syslog_timestamp = String::new();
+                    self.syslog_hostname = "localhost".to_string();
+                    self.syslog_app_name = "udp-packet-studio".to_string();
+                    self.syslog_proc_id = "-".to_string();
+                    self.syslog_msg_id = "-".to_string();
+                    self.syslog_msg = "Hello, Syslog!".to_string();
+                }
+            }
+            PayloadType::Snmp => {
+                if is_req {
+                    self.req_snmp_version = 1;
+                    self.req_snmp_community = "public".to_string();
+                    self.req_snmp_pdu_type = 0;
+                    self.req_snmp_request_id = 1;
+                    self.req_snmp_error_status = 0;
+                    self.req_snmp_error_index = 0;
+                    self.req_snmp_varbinds = vec![crate::types::SnmpVarBindState {
+                        oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                        value_type: crate::types::SnmpValueType::Null,
+                        value: String::new(),
+                    }];
+                } else {
+                    self.snmp_version = 1;
+                    self.snmp_community = "public".to_string();
+                    self.snmp_pdu_type = 0;
+                    self.snmp_request_id = 1;
+                    self.snmp_error_status = 0;
+                    self.snmp_error_index = 0;
+                    self.snmp_varbinds = vec![crate::types::SnmpVarBindState {
+                        oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                        value_type: crate::types::SnmpValueType::Null,
+                        value: String::new(),
+                    }];
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Handles format changes, conversions, and default updates
+    pub fn change_payload_format(&mut self, is_req: bool, request_id: Option<String>, from_type: PayloadType, to_type: PayloadType, current_payload: &str) -> FormatChangeResult {
+        if from_type == to_type {
+            return FormatChangeResult::Immediate { new_payload: current_payload.to_string() };
+        }
+        
+        // If current payload is empty and switching to helper protocol, initialize immediately without prompt
+        if current_payload.trim().is_empty() && (to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp) {
+            self.clear_helper_state(is_req, to_type);
+            let new_payload = match to_type {
+                PayloadType::EchonetLite => {
+                    let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
+                    bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                }
+                PayloadType::Syslog => {
+                    let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
+                    String::from_utf8(bytes).unwrap_or_default()
+                }
+                PayloadType::Snmp => {
+                    let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
+                    bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                }
+                _ => String::new(),
+            };
+            return FormatChangeResult::Immediate { new_payload };
+        }
+        
+        // Switch to helper protocol
+        if to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp {
+            let bytes = match from_type {
+                PayloadType::Text => current_payload.as_bytes().to_vec(),
+                PayloadType::Hex => parse_hex_to_bytes(current_payload).unwrap_or_default(),
+                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                    self.generate_helper_bytes(is_req, from_type).unwrap_or_default()
+                }
+            };
+            
+            if self.try_parse_payload_to_helper(is_req, to_type, &bytes) {
+                let new_payload = match to_type {
+                    PayloadType::EchonetLite | PayloadType::Snmp => {
+                        let gen_bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
+                        gen_bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                    }
+                    PayloadType::Syslog => {
+                        let gen_bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
+                        String::from_utf8(gen_bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+                    }
+                    _ => String::new(),
+                };
+                FormatChangeResult::Immediate { new_payload }
+            } else {
+                FormatChangeResult::Pending(PendingFormatChange {
+                    request_id,
+                    from_type,
+                    to_type,
+                })
+            }
+        } else {
+            // Switch to Text or Hex
+            let bytes = match from_type {
+                PayloadType::Text => current_payload.as_bytes().to_vec(),
+                PayloadType::Hex => parse_hex_to_bytes(current_payload).unwrap_or_default(),
+                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                    self.generate_helper_bytes(is_req, from_type).unwrap_or_default()
+                }
+            };
+            let new_payload = if to_type == PayloadType::Text {
+                String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+            } else {
+                bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+            };
+            FormatChangeResult::Immediate { new_payload }
+        }
+    }
+
+    pub fn update_protocol_mru(&mut self, proto_name: &str) {
+        if let Some(pos) = self.protocol_mru.iter().position(|x| x == proto_name) {
+            self.protocol_mru.remove(pos);
+        }
+        self.protocol_mru.insert(0, proto_name.to_string());
+        self.save_config();
     }
 
     pub fn enforce_log_limits(&mut self) {
@@ -455,10 +835,13 @@ impl UdpStudioState {
         }
     }
 
-    pub(crate) fn send_packet(&mut self, target: &str, payload_type: PayloadType, payload: &str) {
+    pub(crate) fn send_packet(&mut self, target: &str, payload_type: PayloadType, payload: &str, is_req: bool) {
         let data_res = match payload_type {
             PayloadType::Text => Ok(payload.as_bytes().to_vec()),
             PayloadType::Hex => parse_hex_to_bytes(payload),
+            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                self.generate_helper_bytes(is_req, payload_type)
+            }
         };
         
         match data_res {
@@ -474,7 +857,7 @@ impl UdpStudioState {
                 });
             }
             Err(e) => {
-                self.add_system_error(format!("Hex parsing error: {}", e));
+                self.add_system_error(format!("Packet generation error: {}", e));
             }
         }
     }
@@ -956,9 +1339,19 @@ impl MainApp {
 
         let mra_db = mra::MraDatabase::load();
 
+        let composer_selected_proto = match config.composer_payload_type {
+            PayloadType::EchonetLite => PayloadType::EchonetLite,
+            PayloadType::Syslog => PayloadType::Syslog,
+            PayloadType::Snmp => PayloadType::Snmp,
+            _ => PayloadType::EchonetLite,
+        };
+
         let state = UdpStudioState {
             collections: config.collections,
             selected_request_id: None,
+            last_selected_request_id: None,
+            composer_selected_proto,
+            collections_selected_proto: PayloadType::EchonetLite,
             composer_selected_collection_idx: 0,
             composer_ip: config.composer_ip,
             composer_port: config.composer_port,
@@ -1046,6 +1439,46 @@ impl MainApp {
             settings_selected_proto_tab: 0,
             inspector_protocols_order: config.inspector_protocols_order.clone(),
             preset_ports_order: config.preset_ports_order.clone(),
+            
+            // Independent helper states for collection request editing
+            req_el_tid: "0001".to_string(),
+            req_el_seoj: "05FF01".to_string(),
+            req_el_deoj_preset: 0,
+            req_el_deoj_custom: "013001".to_string(),
+            req_el_deoj_eoj: "0130".to_string(),
+            req_el_esv_preset: 0,
+            req_el_properties: vec![ElBuilderProperty { epc: "80".to_string(), edt: String::new() }],
+            req_el_show_helper: false,
+
+            req_syslog_show_helper: false,
+            req_syslog_protocol_version: 0,
+            req_syslog_facility: 1,
+            req_syslog_severity: 5,
+            req_syslog_auto_timestamp: true,
+            req_syslog_timestamp: String::new(),
+            req_syslog_hostname: "localhost".to_string(),
+            req_syslog_app_name: "udp-packet-studio".to_string(),
+            req_syslog_proc_id: "-".to_string(),
+            req_syslog_msg_id: "-".to_string(),
+            req_syslog_msg: "Hello, Syslog!".to_string(),
+
+            req_snmp_show_helper: false,
+            req_snmp_version: 1,
+            req_snmp_community: "public".to_string(),
+            req_snmp_pdu_type: 0,
+            req_snmp_request_id: 1,
+            req_snmp_error_status: 0,
+            req_snmp_error_index: 0,
+            req_snmp_varbinds: vec![crate::types::SnmpVarBindState {
+                oid: "1.3.6.1.2.1.1.1.0".to_string(),
+                value_type: crate::types::SnmpValueType::Null,
+                value: String::new(),
+            }],
+
+            protocol_mru: config.protocol_mru.clone(),
+            composer_pending_format_change: None,
+            collection_pending_format_change: None,
+            editing_request_id: None,
         };
 
         Self {
@@ -2172,7 +2605,134 @@ copies or substantial portions of the Software."
             self.state.about_open = open && !close_clicked;
         }
 
+        // Format Change Confirmation Dialog for Composer
+        if let Some(pending) = self.state.composer_pending_format_change.clone() {
+            let mut open = true;
+            let mut yes_clicked = false;
+            let mut no_clicked = false;
 
+            let title = self.state.tr("dialog-format-change-title");
+            let msg = self.state.tr("dialog-format-change-msg");
+            let yes_label = self.state.tr("dialog-yes");
+            let no_label = self.state.tr("dialog-no");
+
+            egui::Window::new(title)
+                .open(&mut open)
+                .resizable(false)
+                .collapsible(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(&ctx, |ui| {
+                    ui.vertical(|ui| {
+                        ui.label(msg);
+                        ui.add_space(12.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(yes_label).clicked() {
+                                yes_clicked = true;
+                            }
+                            if ui.button(no_label).clicked() {
+                                no_clicked = true;
+                            }
+                        });
+                    });
+                });
+
+            if yes_clicked {
+                self.state.clear_helper_state(false, pending.to_type);
+                if pending.to_type == PayloadType::EchonetLite || pending.to_type == PayloadType::Syslog || pending.to_type == PayloadType::Snmp {
+                    self.state.composer_selected_proto = pending.to_type;
+                }
+                self.state.composer_payload_type = pending.to_type;
+                let bytes = self.state.generate_helper_bytes(false, pending.to_type).unwrap_or_default();
+                self.state.composer_payload = if pending.to_type == PayloadType::Syslog {
+                    String::from_utf8(bytes).unwrap_or_default()
+                } else {
+                    bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                };
+                let proto_name = match pending.to_type {
+                    PayloadType::EchonetLite => "ECHONET Lite",
+                    PayloadType::Syslog => "Syslog",
+                    PayloadType::Snmp => "SNMP",
+                    _ => "",
+                };
+                if !proto_name.is_empty() {
+                    self.state.update_protocol_mru(proto_name);
+                }
+                self.state.composer_pending_format_change = None;
+                self.state.save_config();
+            }
+
+            if no_clicked || !open {
+                self.state.composer_pending_format_change = None;
+            }
+        }
+
+        // Format Change Confirmation Dialog for Collections
+        if let Some(pending) = self.state.collection_pending_format_change.clone() {
+            let mut open = true;
+            let mut yes_clicked = false;
+            let mut no_clicked = false;
+
+            let title = self.state.tr("dialog-format-change-title");
+            let msg = self.state.tr("dialog-format-change-msg");
+            let yes_label = self.state.tr("dialog-yes");
+            let no_label = self.state.tr("dialog-no");
+
+            egui::Window::new(title)
+                .open(&mut open)
+                .resizable(false)
+                .collapsible(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(&ctx, |ui| {
+                    ui.vertical(|ui| {
+                        ui.label(msg);
+                        ui.add_space(12.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(yes_label).clicked() {
+                                yes_clicked = true;
+                            }
+                            if ui.button(no_label).clicked() {
+                                no_clicked = true;
+                            }
+                        });
+                    });
+                });
+
+            if yes_clicked {
+                self.state.clear_helper_state(true, pending.to_type);
+                if pending.to_type == PayloadType::EchonetLite || pending.to_type == PayloadType::Syslog || pending.to_type == PayloadType::Snmp {
+                    self.state.collections_selected_proto = pending.to_type;
+                }
+                if let Some(ref req_id) = pending.request_id {
+                    let bytes = self.state.generate_helper_bytes(true, pending.to_type).unwrap_or_default();
+                    for col in &mut self.state.collections {
+                        if let Some(r) = col.requests.iter_mut().find(|r| r.id == *req_id) {
+                            r.payload_type = pending.to_type;
+                            r.payload = if pending.to_type == PayloadType::Syslog {
+                                String::from_utf8(bytes.clone()).unwrap_or_default()
+                            } else {
+                                bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
+                            };
+                            break;
+                        }
+                    }
+                }
+                let proto_name = match pending.to_type {
+                    PayloadType::EchonetLite => "ECHONET Lite",
+                    PayloadType::Syslog => "Syslog",
+                    PayloadType::Snmp => "SNMP",
+                    _ => "",
+                };
+                if !proto_name.is_empty() {
+                    self.state.update_protocol_mru(proto_name);
+                }
+                self.state.collection_pending_format_change = None;
+                self.state.save_config();
+            }
+
+            if no_clicked || !open {
+                self.state.collection_pending_format_change = None;
+            }
+        }
 
         show_resize_handles(ui);
     }
