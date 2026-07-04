@@ -67,6 +67,8 @@ impl UdpStudioState {
                             InspectorProtocol::EchonetLite => tr("ins-proto-echonet"),
                             InspectorProtocol::Syslog => tr("ins-proto-syslog"),
                             InspectorProtocol::Snmp => tr("ins-proto-snmp"),
+                            InspectorProtocol::Dns => tr("ins-proto-dns"),
+                            InspectorProtocol::Coap => tr("ins-proto-coap"),
                             _ => tr("settings-tab-protocols"),
                         };
 
@@ -99,6 +101,8 @@ impl UdpStudioState {
                                         InspectorProtocol::EchonetLite => tr("ins-proto-echonet"),
                                         InspectorProtocol::Syslog => tr("ins-proto-syslog"),
                                         InspectorProtocol::Snmp => tr("ins-proto-snmp"),
+                                        InspectorProtocol::Dns => tr("ins-proto-dns"),
+                                        InspectorProtocol::Coap => tr("ins-proto-coap"),
                                         _ => "".to_string(),
                                     };
                                     if ui.selectable_value(&mut selected_proto, proto, label).clicked() {
