@@ -22,6 +22,7 @@ pub enum UdpEvent {
     Unbound { id: String },
     Sent { id: String, to: SocketAddr, data: Vec<u8>, timestamp: chrono::DateTime<Local>, local_addr: SocketAddr },
     Received { id: String, from: SocketAddr, data: Vec<u8>, timestamp: chrono::DateTime<Local>, local_addr: SocketAddr },
+    BindError { id: String, err: String },
     Error { id: String, err: String },
     MulticastJoined { id: String, multi_addr: String, interface_addr: String },
     MulticastLeft { id: String, multi_addr: String, interface_addr: String },
@@ -137,15 +138,15 @@ impl UdpWorker {
                                             event_sender.send(UdpEvent::Bound { id, addr: bound_addr });
                                         }
                                         Err(e) => {
-                                            event_sender.send(UdpEvent::Error { id, err: format!("Failed to bind: {}", e) });
+                                            event_sender.send(UdpEvent::BindError { id, err: format!("Failed to bind: {}", e) });
                                         }
                                     }
                                 } else {
-                                    event_sender.send(UdpEvent::Error { id, err: format!("No addresses resolved for bind: {}", addr_str) });
+                                    event_sender.send(UdpEvent::BindError { id, err: format!("No addresses resolved for bind: {}", addr_str) });
                                 }
                             }
                             Err(e) => {
-                                event_sender.send(UdpEvent::Error { id, err: format!("Invalid bind address '{}': {}", addr_str, e) });
+                                event_sender.send(UdpEvent::BindError { id, err: format!("Invalid bind address '{}': {}", addr_str, e) });
                             }
                         }
                     }
