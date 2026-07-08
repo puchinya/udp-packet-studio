@@ -324,14 +324,14 @@ impl UdpStudioState {
                             .vscroll(true)
                             .sense(egui::Sense::click()) // Add click sense to enable selection!
                             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                            .column(Column::exact(45.0))  // No.
-                            .column(Column::exact(100.0)) // Time
-                            .column(Column::exact(80.0))  // Type
-                            .column(Column::exact(110.0)) // Source IP
-                            .column(Column::exact(70.0))  // Send Port
-                            .column(Column::exact(110.0)) // Dest IP
-                            .column(Column::exact(70.0))  // Recv Port
-                            .column(Column::exact(60.0))  // Length
+                            .column(Column::initial(45.0))  // No.
+                            .column(Column::initial(100.0)) // Time
+                            .column(Column::initial(80.0))  // Type
+                            .column(Column::initial(110.0)) // Source IP
+                            .column(Column::initial(70.0))  // Send Port
+                            .column(Column::initial(110.0)) // Dest IP
+                            .column(Column::initial(70.0))  // Recv Port
+                            .column(Column::initial(60.0))  // Length
                             .column(Column::remainder());  // Info/Payload
 
                         if let Some(row_pos) = scroll_to_row_idx {
