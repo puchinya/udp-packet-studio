@@ -417,12 +417,14 @@ impl UdpStudioState {
 
         let is_helper_active = self.composer_payload_type == PayloadType::EchonetLite
             || self.composer_payload_type == PayloadType::Syslog
-            || self.composer_payload_type == PayloadType::Snmp;
+            || self.composer_payload_type == PayloadType::Snmp
+            || self.composer_payload_type == PayloadType::Dns
+            || self.composer_payload_type == PayloadType::Coap;
 
         if is_helper_active {
             if let Ok(bytes) = self.generate_helper_bytes(false, self.composer_payload_type) {
                 self.composer_payload = match self.composer_payload_type {
-                    PayloadType::EchonetLite | PayloadType::Snmp => {
+                    PayloadType::EchonetLite | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                         bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
                     }
                     PayloadType::Syslog => {
@@ -486,11 +488,17 @@ impl UdpStudioState {
                                     ip_chosen = Some("255.255.255.255".to_string());
                                     ui.close();
                                 }
-                                // ECHONET Lite multicast
-                                if ui.button("224.0.23.0  (ECHONET Lite Multicast)").clicked() {
-                                    ip_chosen = Some("224.0.23.0".to_string());
-                                    ui.close();
-                                }
+                                 // Multicast Submenu
+                                 ui.menu_button(tr("composer-ip-preset-multicast"), |ui| {
+                                     if ui.button("224.0.23.0  (ECHONET Lite)").clicked() {
+                                         ip_chosen = Some("224.0.23.0".to_string());
+                                         ui.close();
+                                     }
+                                     if ui.button("224.0.0.251  (mDNS IPv4)").clicked() {
+                                         ip_chosen = Some("224.0.0.251".to_string());
+                                         ui.close();
+                                     }
+                                 });
 
                                 // NIF broadcast addresses
                                 if let Ok(ifaces) = get_if_addrs::get_if_addrs() {
@@ -547,20 +555,10 @@ impl UdpStudioState {
                                 ui.set_min_width(150.0);
                                 ui.menu_button(tr("composer-port-preset-section"), |ui| {
                                     for item in &self.preset_ports_order {
-                                        let key = match item.protocol.as_str() {
-                                            "ECHONET Lite" => "composer-port-preset-echonet",
-                                            "Syslog" => "composer-port-preset-syslog",
-                                            "SNMP Agent" => "composer-port-preset-snmp-agent",
-                                            "SNMP Trap" => "composer-port-preset-snmp-trap",
-                                            _ => "",
-                                        };
-                                        if !key.is_empty() {
-                                            let mut args = std::collections::HashMap::new();
-                                            args.insert(std::borrow::Cow::Borrowed("port"), item.port.clone().into());
-                                            if ui.button(tr_args(key, &args)).clicked() {
-                                                port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
-                                                ui.close();
-                                            }
+                                        let label = format!("{} : {}", item.protocol, item.port);
+                                        if ui.button(&label).clicked() {
+                                            port_chosen = Some((Some(item.protocol.clone()), item.port.clone()));
+                                            ui.close();
                                         }
                                     }
                                 });
@@ -624,6 +622,8 @@ impl UdpStudioState {
                                     PayloadType::EchonetLite => PayloadType::EchonetLite,
                                     PayloadType::Syslog => PayloadType::Syslog,
                                     PayloadType::Snmp => PayloadType::Snmp,
+                                    PayloadType::Dns => PayloadType::Dns,
+                                    PayloadType::Coap => PayloadType::Coap,
                                     _ => self.composer_selected_proto,
                                 };
                                 let current_proto_name = match active_proto {
@@ -663,12 +663,16 @@ impl UdpStudioState {
                                 PayloadType::EchonetLite => PayloadType::EchonetLite,
                                 PayloadType::Syslog => PayloadType::Syslog,
                                 PayloadType::Snmp => PayloadType::Snmp,
+                                PayloadType::Dns => PayloadType::Dns,
+                                PayloadType::Coap => PayloadType::Coap,
                                 _ => self.composer_selected_proto,
                             };
                             let current_proto_name = match active_proto {
                                 PayloadType::EchonetLite => "ECHONET Lite",
                                 PayloadType::Syslog => "Syslog",
                                 PayloadType::Snmp => "SNMP",
+                                PayloadType::Dns => "DNS",
+                                PayloadType::Coap => "CoAP",
                                 _ => "ECHONET Lite",
                             };
 
@@ -705,6 +709,8 @@ impl UdpStudioState {
                                         PayloadType::EchonetLite => "ECHONET Lite",
                                         PayloadType::Syslog => "Syslog",
                                         PayloadType::Snmp => "SNMP",
+                                        PayloadType::Dns => "DNS",
+                                        PayloadType::Coap => "CoAP",
                                         _ => "",
                                     };
                                     if !proto_name.is_empty() {
@@ -724,6 +730,8 @@ impl UdpStudioState {
                             "ECHONET Lite" => PayloadType::EchonetLite,
                             "Syslog" => PayloadType::Syslog,
                             "SNMP" => PayloadType::Snmp,
+                            "DNS" => PayloadType::Dns,
+                            "CoAP" => PayloadType::Coap,
                             _ => PayloadType::EchonetLite,
                         };
                         self.composer_selected_proto = to_type;
@@ -753,6 +761,10 @@ impl UdpStudioState {
                     self.show_syslog_helper(ui, false);
                 } else if self.composer_payload_type == PayloadType::Snmp {
                     self.show_snmp_helper(ui, false);
+                } else if self.composer_payload_type == PayloadType::Dns {
+                    self.show_dns_helper(ui, false);
+                } else if self.composer_payload_type == PayloadType::Coap {
+                    self.show_coap_helper(ui, false);
                 }
 
                 ui.add_space(10.0);
@@ -1196,6 +1208,366 @@ impl UdpStudioState {
                     value: String::new(),
                 });
             }
+        });
+    }
+
+    pub fn show_dns_helper(&mut self, ui: &mut egui::Ui, is_req: bool) {
+        crate::locales::init_translations();
+        let lang_id = self.language_id();
+        let tr = |key: &str| {
+            egui_i18n::set_language(&lang_id);
+            egui_i18n::tr!(key)
+        };
+
+        let (
+            dns_transaction_id,
+            dns_flags,
+            dns_qname,
+            dns_qtype,
+            dns_qclass,
+        ) = if is_req {
+            (
+                &mut self.req_dns_transaction_id,
+                &mut self.req_dns_flags,
+                &mut self.req_dns_qname,
+                &mut self.req_dns_qtype,
+                &mut self.req_dns_qclass,
+            )
+        } else {
+            (
+                &mut self.dns_transaction_id,
+                &mut self.dns_flags,
+                &mut self.dns_qname,
+                &mut self.dns_qtype,
+                &mut self.dns_qclass,
+            )
+        };
+
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.strong("DNS / mDNS Builder");
+            ui.add_space(8.0);
+
+            egui::Grid::new(if is_req { "dns_grid_req" } else { "dns_grid" })
+                .num_columns(2)
+                .spacing([10.0, 10.0])
+                .show(ui, |ui| {
+                    // Transaction ID
+                    ui.label(tr("dns-tid"));
+                    ui.add(egui::DragValue::new(dns_transaction_id));
+                    ui.end_row();
+
+                    // Flags
+                    ui.label(tr("dns-flags"));
+                    let mut flags_preset = if *dns_flags == 0x0100 {
+                        0
+                    } else if *dns_flags == 0x0000 {
+                        1
+                    } else {
+                        2
+                    };
+                    
+                    let original_visuals = if flags_preset == 2 {
+                        let orig = ui.visuals().clone();
+                        let visuals = ui.visuals_mut();
+                        visuals.widgets.inactive.bg_fill = visuals.selection.bg_fill;
+                        visuals.widgets.inactive.fg_stroke = visuals.selection.stroke;
+                        Some(orig)
+                    } else {
+                        None
+                    };
+
+                    let combo_label = match flags_preset {
+                        0 => "Standard Query (0x0100)".to_string(),
+                        1 => "mDNS Query (0x0000)".to_string(),
+                        _ => format!("Custom (0x{:04X})", *dns_flags),
+                    };
+
+                    egui::ComboBox::from_id_salt(if is_req { "dns_flags_combo_req" } else { "dns_flags_combo" })
+                        .selected_text(combo_label)
+                        .show_ui(ui, |ui| {
+                            if let Some(ref orig) = original_visuals {
+                                *ui.visuals_mut() = orig.clone();
+                            }
+                            if ui.selectable_value(&mut flags_preset, 0, "Standard Query (0x0100)").clicked() {
+                                *dns_flags = 0x0100;
+                            }
+                            if ui.selectable_value(&mut flags_preset, 1, "mDNS Query (0x0000)").clicked() {
+                                *dns_flags = 0x0000;
+                            }
+                            ui.selectable_value(&mut flags_preset, 2, "Custom...");
+                        });
+                    
+                    if let Some(orig) = original_visuals {
+                        *ui.visuals_mut() = orig;
+                    }
+                    ui.end_row();
+
+                    if flags_preset == 2 {
+                        ui.label("");
+                        ui.horizontal(|ui| {
+                            ui.label("0x");
+                            let mut val = *dns_flags;
+                            let res = ui.add(egui::DragValue::new(&mut val).custom_formatter(|v, _| format!("{:04X}", v as u32)));
+                            if res.changed() {
+                                *dns_flags = val;
+                            }
+                        });
+                        ui.end_row();
+                    }
+
+                    // Query Name (QNAME)
+                    ui.label(tr("dns-qname"));
+                    ui.horizontal(|ui| {
+                        ui.text_edit_singleline(dns_qname);
+                        ui.menu_button("▾", |ui| {
+                            if ui.button("_services._dns-sd._udp.local  (mDNS Service Discovery)").clicked() {
+                                *dns_qname = "_services._dns-sd._udp.local".to_string();
+                                *dns_qtype = 12; // PTR
+                                *dns_flags = 0x0000;
+                                ui.close();
+                            }
+                            if ui.button("local  (mDNS Root)").clicked() {
+                                *dns_qname = "local".to_string();
+                                ui.close();
+                            }
+                            if ui.button("google.com  (DNS Sample)").clicked() {
+                                *dns_qname = "google.com".to_string();
+                                *dns_qtype = 1; // A
+                                *dns_flags = 0x0100; // Standard Query
+                                ui.close();
+                            }
+                        });
+                    });
+                    ui.end_row();
+
+                    // Query Type (QTYPE)
+                    ui.label(tr("dns-qtype"));
+                    let current_type_name = crate::dns::qtype_name(*dns_qtype);
+                    let type_label = format!("{} ({})", current_type_name, *dns_qtype);
+                    egui::ComboBox::from_id_salt(if is_req { "dns_qtype_combo_req" } else { "dns_qtype_combo" })
+                        .selected_text(type_label)
+                        .show_ui(ui, |ui| {
+                            let types = [
+                                ("A", 1),
+                                ("AAAA", 28),
+                                ("PTR", 12),
+                                ("TXT", 16),
+                                ("SRV", 33),
+                                ("ANY", 255),
+                                ("MX", 15),
+                                ("NS", 2),
+                                ("CNAME", 5),
+                            ];
+                            for (name, val) in &types {
+                                ui.selectable_value(dns_qtype, *val, format!("{} ({})", name, val));
+                            }
+                        });
+                    ui.end_row();
+
+                    // Query Class (QCLASS)
+                    ui.label(tr("dns-qclass"));
+                    let current_class_name = crate::dns::qclass_name(*dns_qclass);
+                    let class_label = format!("{} (0x{:04X})", current_class_name, *dns_qclass);
+                    egui::ComboBox::from_id_salt(if is_req { "dns_qclass_combo_req" } else { "dns_qclass_combo" })
+                        .selected_text(class_label)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(dns_qclass, 1, "IN (0x0001)");
+                            ui.selectable_value(dns_qclass, 0x8001, "IN (unicast-response) (0x8001)");
+                        });
+                    ui.end_row();
+                });
+        });
+    }
+
+    pub fn show_coap_helper(&mut self, ui: &mut egui::Ui, is_req: bool) {
+        crate::locales::init_translations();
+        let lang_id = self.language_id();
+        let tr = |key: &str| {
+            egui_i18n::set_language(&lang_id);
+            egui_i18n::tr!(key)
+        };
+
+        let (
+            coap_version,
+            coap_mtype,
+            coap_code,
+            coap_message_id,
+            coap_token,
+            coap_options,
+            coap_payload,
+        ) = if is_req {
+            (
+                &mut self.req_coap_version,
+                &mut self.req_coap_mtype,
+                &mut self.req_coap_code,
+                &mut self.req_coap_message_id,
+                &mut self.req_coap_token,
+                &mut self.req_coap_options,
+                &mut self.req_coap_payload,
+            )
+        } else {
+            (
+                &mut self.coap_version,
+                &mut self.coap_mtype,
+                &mut self.coap_code,
+                &mut self.coap_message_id,
+                &mut self.coap_token,
+                &mut self.coap_options,
+                &mut self.coap_payload,
+            )
+        };
+
+        ui.add_space(6.0);
+        ui.group(|ui| {
+            ui.strong("CoAP Builder");
+            ui.add_space(8.0);
+
+            egui::Grid::new(if is_req { "coap_grid_req" } else { "coap_grid" })
+                .num_columns(2)
+                .spacing([10.0, 10.0])
+                .show(ui, |ui| {
+                    // Version
+                    ui.label(tr("coap-version-lbl"));
+                    ui.add(egui::DragValue::new(coap_version).range(0..=3));
+                    ui.end_row();
+
+                    // Message Type
+                    ui.label(tr("coap-type-lbl"));
+                    let mtype_label = match *coap_mtype {
+                        0 => "Confirmable (CON)",
+                        1 => "Non-confirmable (NON)",
+                        2 => "Acknowledgement (ACK)",
+                        3 => "Reset (RST)",
+                        _ => "Confirmable (CON)",
+                    };
+                    egui::ComboBox::from_id_salt(if is_req { "coap_mtype_combo_req" } else { "coap_mtype_combo" })
+                        .selected_text(mtype_label)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(coap_mtype, 0, "Confirmable (CON)");
+                            ui.selectable_value(coap_mtype, 1, "Non-confirmable (NON)");
+                            ui.selectable_value(coap_mtype, 2, "Acknowledgement (ACK)");
+                            ui.selectable_value(coap_mtype, 3, "Reset (RST)");
+                        });
+                    ui.end_row();
+
+                    // Code
+                    ui.label(tr("coap-code-lbl"));
+                    let current_code_name = crate::coap::code_name(*coap_code);
+                    egui::ComboBox::from_id_salt(if is_req { "coap_code_combo_req" } else { "coap_code_combo" })
+                        .selected_text(&current_code_name)
+                        .show_ui(ui, |ui| {
+                            let codes = [
+                                ("GET", 1),
+                                ("POST", 2),
+                                ("PUT", 3),
+                                ("DELETE", 4),
+                                ("2.01 Created", 65),
+                                ("2.02 Deleted", 66),
+                                ("2.03 Valid", 67),
+                                ("2.04 Changed", 68),
+                                ("2.05 Content", 69),
+                                ("4.00 Bad Request", 128),
+                                ("4.01 Unauthorized", 129),
+                                ("4.03 Forbidden", 131),
+                                ("4.04 Not Found", 132),
+                                ("4.05 Method Not Allowed", 133),
+                                ("5.00 Internal Server Error", 160),
+                                ("5.03 Service Unavailable", 163),
+                            ];
+                            for (name, val) in &codes {
+                                ui.selectable_value(coap_code, *val, format!("{} ({})", name, val));
+                            }
+                        });
+                    ui.end_row();
+
+                    // Message ID
+                    ui.label(tr("coap-message-id-lbl"));
+                    ui.add(egui::DragValue::new(coap_message_id));
+                    ui.end_row();
+
+                    // Token
+                    ui.label(tr("coap-token-lbl"));
+                    ui.text_edit_singleline(coap_token);
+                    ui.end_row();
+                });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.strong(tr("coap-options-title"));
+            ui.add_space(4.0);
+
+            let mut remove_idx = None;
+
+            egui::ScrollArea::vertical()
+                .id_salt(if is_req { "coap_options_scroll_req" } else { "coap_options_scroll" })
+                .max_height(150.0)
+                .show(ui, |ui| {
+                    for (i, opt) in coap_options.iter_mut().enumerate() {
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("#{}", i + 1));
+                                
+                                ui.label(tr("coap-option-num"));
+                                let mut opt_num = opt.number.trim().parse::<u16>().unwrap_or(11);
+                                let current_opt_name = crate::coap::option_name(opt_num);
+                                let opt_label = format!("{} ({})", current_opt_name, opt_num);
+                                
+                                egui::ComboBox::from_id_salt(format!("coap_optnum_{}_{}", if is_req { "req" } else { "composer" }, i))
+                                    .selected_text(opt_label)
+                                    .show_ui(ui, |ui| {
+                                        let options_list = [
+                                            ("Uri-Host", 3),
+                                            ("Uri-Port", 7),
+                                            ("Uri-Path", 11),
+                                            ("Content-Format", 12),
+                                            ("Max-Age", 14),
+                                            ("Uri-Query", 15),
+                                            ("Accept", 17),
+                                            ("Location-Path", 8),
+                                            ("Location-Query", 20),
+                                            ("Proxy-Uri", 35),
+                                            ("Proxy-Scheme", 39),
+                                            ("Size1", 60),
+                                        ];
+                                        for (name, val) in &options_list {
+                                            if ui.selectable_value(&mut opt_num, *val, format!("{} ({})", name, val)).clicked() {
+                                                opt.number = opt_num.to_string();
+                                            }
+                                        }
+                                    });
+
+                                ui.label(tr("coap-option-val"));
+                                ui.add(egui::TextEdit::singleline(&mut opt.value).desired_width(120.0));
+
+                                if ui.small_button("✖").clicked() {
+                                    remove_idx = Some(i);
+                                }
+                            });
+                        });
+                        ui.add_space(4.0);
+                    }
+                });
+
+            if let Some(idx) = remove_idx {
+                coap_options.remove(idx);
+            }
+
+            ui.add_space(4.0);
+            if ui.small_button(tr("coap-option-add")).clicked() {
+                coap_options.push(crate::coap::CoapOptionState {
+                    number: "11".to_string(), // Uri-Path default
+                    value: String::new(),
+                });
+            }
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.strong("Payload (Hex)");
+            ui.add_space(4.0);
+            ui.text_edit_singleline(coap_payload);
         });
     }
 }

@@ -631,9 +631,9 @@ dependencies = [
 
 [[package]]
 name = "egui_dock"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff42beee431ab63b0c1a2044685c4c04ceb0e5e4c1d14dda3dad07aee1ff1525"
+checksum = "340d58d0932c472cba78b4ecb6050d86bddf3ba509e1320ac4c0d29af3383c5c"
 dependencies = [
  "duplicate",
  "egui",
@@ -2901,7 +2901,7 @@ dependencies = [
 
 [[package]]
 name = "udp-packet-studio"
-version = "1.1.2"
+version = "1.1.3"
 dependencies = [
  "chrono",
  "dirs",

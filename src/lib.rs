@@ -11,6 +11,8 @@ pub mod mra_defs;
 pub mod filter;
 pub mod syslog;
 pub mod snmp;
+pub mod dns;
+pub mod coap;
 
 use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -112,6 +114,24 @@ pub struct UdpStudioState {
     pub snmp_error_index: i32,
     pub snmp_varbinds: Vec<crate::types::SnmpVarBindState>,
 
+    // DNS Helper state
+    pub dns_show_helper: bool,
+    pub dns_transaction_id: u16,
+    pub dns_flags: u16,
+    pub dns_qname: String,
+    pub dns_qtype: u16,
+    pub dns_qclass: u16,
+
+    // CoAP Helper state
+    pub coap_show_helper: bool,
+    pub coap_version: u8,
+    pub coap_mtype: u8,
+    pub coap_code: u8,
+    pub coap_message_id: u16,
+    pub coap_token: String,
+    pub coap_options: Vec<crate::coap::CoapOptionState>,
+    pub coap_payload: String,
+
     // Multicast fields (UI inputs)
     pub multicast_input_addr: String,
     pub multicast_input_interface: String,
@@ -171,6 +191,22 @@ pub struct UdpStudioState {
     pub req_snmp_error_index: i32,
     pub req_snmp_varbinds: Vec<crate::types::SnmpVarBindState>,
 
+    pub req_dns_show_helper: bool,
+    pub req_dns_transaction_id: u16,
+    pub req_dns_flags: u16,
+    pub req_dns_qname: String,
+    pub req_dns_qtype: u16,
+    pub req_dns_qclass: u16,
+
+    pub req_coap_show_helper: bool,
+    pub req_coap_version: u8,
+    pub req_coap_mtype: u8,
+    pub req_coap_code: u8,
+    pub req_coap_message_id: u16,
+    pub req_coap_token: String,
+    pub req_coap_options: Vec<crate::coap::CoapOptionState>,
+    pub req_coap_payload: String,
+
     // Protocol MRU
     pub protocol_mru: Vec<String>,
 
@@ -219,6 +255,12 @@ impl UdpStudioState {
         }
         for p in self.protocol_config.snmp_trap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
             current_items.push(crate::types::PresetPortItem { protocol: "SNMP Trap".to_string(), port: p.to_string() });
+        }
+        for p in self.protocol_config.dns_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "DNS".to_string(), port: p.to_string() });
+        }
+        for p in self.protocol_config.coap_port.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            current_items.push(crate::types::PresetPortItem { protocol: "CoAP".to_string(), port: p.to_string() });
         }
 
         let mut new_order = Vec::new();
@@ -460,6 +502,103 @@ impl UdpStudioState {
                     crate::snmp::build_snmp(version, &self.snmp_community, pdu_type, self.snmp_request_id, self.snmp_error_status, self.snmp_error_index, &self.snmp_varbinds)
                 }
             }
+            PayloadType::Dns => {
+                if is_req {
+                    crate::dns::build_dns_query(
+                        self.req_dns_transaction_id,
+                        self.req_dns_flags,
+                        &self.req_dns_qname,
+                        self.req_dns_qtype,
+                        self.req_dns_qclass,
+                    )
+                } else {
+                    crate::dns::build_dns_query(
+                        self.dns_transaction_id,
+                        self.dns_flags,
+                        &self.dns_qname,
+                        self.dns_qtype,
+                        self.dns_qclass,
+                    )
+                }
+            }
+            PayloadType::Coap => {
+                let (version, mtype, code, message_id, token_str, options_state, payload_str) = if is_req {
+                    (
+                        self.req_coap_version,
+                        self.req_coap_mtype,
+                        self.req_coap_code,
+                        self.req_coap_message_id,
+                        &self.req_coap_token,
+                        &self.req_coap_options,
+                        &self.req_coap_payload,
+                    )
+                } else {
+                    (
+                        self.coap_version,
+                        self.coap_mtype,
+                        self.coap_code,
+                        self.coap_message_id,
+                        &self.coap_token,
+                        &self.coap_options,
+                        &self.coap_payload,
+                    )
+                };
+                
+                let token_bytes = parse_hex_to_bytes(token_str).unwrap_or_default();
+                
+                let mut options_bytes = Vec::new();
+                for opt in options_state {
+                    let opt_num = opt.number.trim().parse::<u16>().map_err(|e| format!("Invalid Option Number: {}", e))?;
+                    let opt_val = match opt_num {
+                        // String options (UTF-8 string)
+                        3 | 8 | 11 | 15 | 20 | 35 | 39 => {
+                            opt.value.as_bytes().to_vec()
+                        }
+                        // Uint options (0-8 bytes integer)
+                        7 | 12 | 14 | 17 | 60 => {
+                            let val_trimmed = opt.value.trim();
+                            if val_trimmed.is_empty() {
+                                Vec::new()
+                            } else {
+                                match val_trimmed.parse::<u64>() {
+                                    Ok(num) => {
+                                        if num == 0 {
+                                            vec![] // CoAP uint representing 0 is preferred to be empty (0 bytes) in some contexts, but let's send 1 zero-byte or empty. RFC7252: "a value of 0 is represented by an empty option value"
+                                        } else {
+                                            let bytes = num.to_be_bytes();
+                                            let mut start = 0;
+                                            while start < 8 && bytes[start] == 0 {
+                                                start += 1;
+                                            }
+                                            bytes[start..].to_vec()
+                                        }
+                                    }
+                                    Err(_) => {
+                                        parse_hex_to_bytes(val_trimmed).map_err(|e| format!("Invalid Option Uint/Hex Value: {}", e))?
+                                    }
+                                }
+                            }
+                        }
+                        // Opaque / Default (Hex string)
+                        _ => {
+                            parse_hex_to_bytes(&opt.value).map_err(|e| format!("Invalid Option Hex Value: {}", e))?
+                        }
+                    };
+                    options_bytes.push((opt_num, opt_val));
+                }
+                
+                let payload_bytes = parse_hex_to_bytes(payload_str).unwrap_or_default();
+                
+                crate::coap::build_coap_packet(
+                    version,
+                    mtype,
+                    code,
+                    message_id,
+                    &token_bytes,
+                    &mut options_bytes,
+                    &payload_bytes,
+                )
+            }
         }
     }
 
@@ -578,6 +717,65 @@ impl UdpStudioState {
                     false
                 }
             }
+            PayloadType::Dns => {
+                if let Ok(details) = crate::dns::parse_dns(bytes) {
+                    let qname = details.questions.first().map(|q| q.name.clone()).unwrap_or_else(|| "google.com".to_string());
+                    let qtype = details.questions.first().map(|q| q.qtype).unwrap_or(1);
+                    let qclass = details.questions.first().map(|q| q.qclass).unwrap_or(1);
+                    if is_req {
+                        self.req_dns_transaction_id = details.transaction_id;
+                        self.req_dns_flags = details.flags;
+                        self.req_dns_qname = qname;
+                        self.req_dns_qtype = qtype;
+                        self.req_dns_qclass = qclass;
+                    } else {
+                        self.dns_transaction_id = details.transaction_id;
+                        self.dns_flags = details.flags;
+                        self.dns_qname = qname;
+                        self.dns_qtype = qtype;
+                        self.dns_qclass = qclass;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            PayloadType::Coap => {
+                if let Ok(details) = crate::coap::parse_coap(bytes) {
+                    let token_hex = details.token.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                    
+                    let mut options = Vec::new();
+                    for opt in details.options {
+                        options.push(crate::coap::CoapOptionState {
+                            number: opt.number.to_string(),
+                            value: opt.value.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" "),
+                        });
+                    }
+                    
+                    let payload_hex = details.payload.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ");
+                    
+                    if is_req {
+                        self.req_coap_version = details.version;
+                        self.req_coap_mtype = details.mtype;
+                        self.req_coap_code = details.code;
+                        self.req_coap_message_id = details.message_id;
+                        self.req_coap_token = token_hex;
+                        self.req_coap_options = options;
+                        self.req_coap_payload = payload_hex;
+                    } else {
+                        self.coap_version = details.version;
+                        self.coap_mtype = details.mtype;
+                        self.coap_code = details.code;
+                        self.coap_message_id = details.message_id;
+                        self.coap_token = token_hex;
+                        self.coap_options = options;
+                        self.coap_payload = payload_hex;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -655,6 +853,44 @@ impl UdpStudioState {
                     }];
                 }
             }
+            PayloadType::Dns => {
+                if is_req {
+                    self.req_dns_transaction_id = 1;
+                    self.req_dns_flags = 0x0100;
+                    self.req_dns_qname = "google.com".to_string();
+                    self.req_dns_qtype = 1;
+                    self.req_dns_qclass = 1;
+                } else {
+                    self.dns_transaction_id = 1;
+                    self.dns_flags = 0x0100;
+                    self.dns_qname = "google.com".to_string();
+                    self.dns_qtype = 1;
+                    self.dns_qclass = 1;
+                }
+            }
+            PayloadType::Coap => {
+                if is_req {
+                    self.req_coap_version = 1;
+                    self.req_coap_mtype = 0;
+                    self.req_coap_code = 1;
+                    self.req_coap_message_id = 1;
+                    self.req_coap_token = "DEAD".to_string();
+                    self.req_coap_options = vec![
+                        crate::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+                    ];
+                    self.req_coap_payload = String::new();
+                } else {
+                    self.coap_version = 1;
+                    self.coap_mtype = 0;
+                    self.coap_code = 1;
+                    self.coap_message_id = 1;
+                    self.coap_token = "DEAD".to_string();
+                    self.coap_options = vec![
+                        crate::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+                    ];
+                    self.coap_payload = String::new();
+                }
+            }
             _ => {}
         }
     }
@@ -666,10 +902,10 @@ impl UdpStudioState {
         }
         
         // If current payload is empty and switching to helper protocol, initialize immediately without prompt
-        if current_payload.trim().is_empty() && (to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp) {
+        if current_payload.trim().is_empty() && (to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp || to_type == PayloadType::Dns || to_type == PayloadType::Coap) {
             self.clear_helper_state(is_req, to_type);
             let new_payload = match to_type {
-                PayloadType::EchonetLite => {
+                PayloadType::EchonetLite | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                     let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
                     bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
                 }
@@ -677,28 +913,24 @@ impl UdpStudioState {
                     let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
                     String::from_utf8(bytes).unwrap_or_default()
                 }
-                PayloadType::Snmp => {
-                    let bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
-                    bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
-                }
                 _ => String::new(),
             };
             return FormatChangeResult::Immediate { new_payload };
         }
         
         // Switch to helper protocol
-        if to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp {
+        if to_type == PayloadType::EchonetLite || to_type == PayloadType::Syslog || to_type == PayloadType::Snmp || to_type == PayloadType::Dns || to_type == PayloadType::Coap {
             let bytes = match from_type {
                 PayloadType::Text => current_payload.as_bytes().to_vec(),
                 PayloadType::Hex => parse_hex_to_bytes(current_payload).unwrap_or_default(),
-                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                     self.generate_helper_bytes(is_req, from_type).unwrap_or_default()
                 }
             };
             
             if self.try_parse_payload_to_helper(is_req, to_type, &bytes) {
                 let new_payload = match to_type {
-                    PayloadType::EchonetLite | PayloadType::Snmp => {
+                    PayloadType::EchonetLite | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                         let gen_bytes = self.generate_helper_bytes(is_req, to_type).unwrap_or_default();
                         gen_bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<String>>().join(" ")
                     }
@@ -721,7 +953,7 @@ impl UdpStudioState {
             let bytes = match from_type {
                 PayloadType::Text => current_payload.as_bytes().to_vec(),
                 PayloadType::Hex => parse_hex_to_bytes(current_payload).unwrap_or_default(),
-                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+                PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                     self.generate_helper_bytes(is_req, from_type).unwrap_or_default()
                 }
             };
@@ -862,17 +1094,14 @@ impl UdpStudioState {
         let data_res = match payload_type {
             PayloadType::Text => Ok(payload.as_bytes().to_vec()),
             PayloadType::Hex => parse_hex_to_bytes(payload),
-            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp => {
+            PayloadType::EchonetLite | PayloadType::Syslog | PayloadType::Snmp | PayloadType::Dns | PayloadType::Coap => {
                 self.generate_helper_bytes(is_req, payload_type)
             }
         };
         
         match data_res {
             Ok(data) => {
-                if data.is_empty() {
-                    self.add_system_error("Cannot send empty packet.".to_string());
-                    return;
-                }
+
                 self.udp_worker.send(UdpCommand::Send {
                     id: self.selected_socket_id.clone(),
                     target: target.to_string(),
@@ -973,7 +1202,12 @@ impl UdpStudioState {
             ui.add_space(5.0);
 
             if is_listening {
-                if ui.add(egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-stop")).color(egui::Color32::from_rgb(255, 100, 100)))).clicked() {
+                let stop_color = if self.is_dark_theme(ui.ctx()) {
+                    egui::Color32::from_rgb(255, 100, 100)
+                } else {
+                    egui::Color32::from_rgb(211, 47, 47)
+                };
+                if ui.add(egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-stop")).color(stop_color))).clicked() {
                     self.udp_worker.send(UdpCommand::Unbind { id: id.clone() });
                 }
             } else {
@@ -983,7 +1217,14 @@ impl UdpStudioState {
                 };
                 let bind_btn = ui.add_enabled(
                     is_port_valid,
-                    egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-bind")).color(egui::Color32::from_rgb(100, 255, 100)))
+                    {
+                        let bind_color = if self.is_dark_theme(ui.ctx()) {
+                            egui::Color32::from_rgb(100, 255, 100)
+                        } else {
+                            egui::Color32::from_rgb(46, 125, 50)
+                        };
+                        egui::Button::new(egui::RichText::new(self.tr("titlebar-btn-bind")).color(bind_color))
+                    }
                 );
                 if bind_btn.clicked() {
                     self.sockets[socket_idx].error = None;
@@ -1136,6 +1377,10 @@ impl<'a> egui_dock::TabViewer for MyTabViewer<'a> {
 
     fn allowed_in_windows(&self, _tab: &mut Self::Tab) -> bool {
         false
+    }
+
+    fn scroll_bars(&self, _tab: &Self::Tab) -> [bool; 2] {
+        [false, false]
     }
 }
 
@@ -1441,6 +1686,22 @@ impl MainApp {
                 value_type: crate::types::SnmpValueType::Null,
                 value: String::new(),
             }],
+            dns_show_helper: false,
+            dns_transaction_id: 1,
+            dns_flags: 0x0100,
+            dns_qname: "google.com".to_string(),
+            dns_qtype: 1,
+            dns_qclass: 1,
+            coap_show_helper: false,
+            coap_version: 1,
+            coap_mtype: 0,
+            coap_code: 1,
+            coap_message_id: 1,
+            coap_token: "DEAD".to_string(),
+            coap_options: vec![
+                crate::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+            ],
+            coap_payload: String::new(),
             multicast_input_addr: "224.0.23.0".to_string(),
             multicast_input_interface: "0.0.0.0".to_string(),
             inspector_protocol: InspectorProtocol::Raw,
@@ -1499,6 +1760,22 @@ impl MainApp {
                 value_type: crate::types::SnmpValueType::Null,
                 value: String::new(),
             }],
+            req_dns_show_helper: false,
+            req_dns_transaction_id: 1,
+            req_dns_flags: 0x0100,
+            req_dns_qname: "google.com".to_string(),
+            req_dns_qtype: 1,
+            req_dns_qclass: 1,
+            req_coap_show_helper: false,
+            req_coap_version: 1,
+            req_coap_mtype: 0,
+            req_coap_code: 1,
+            req_coap_message_id: 1,
+            req_coap_token: "DEAD".to_string(),
+            req_coap_options: vec![
+                crate::coap::CoapOptionState { number: "11".to_string(), value: "sensors".to_string() }
+            ],
+            req_coap_payload: String::new(),
 
             protocol_mru: config.protocol_mru.clone(),
             composer_pending_format_change: None,
@@ -1706,10 +1983,13 @@ impl eframe::App for MainApp {
                     self.state.push_log(entry);
                     ctx.request_repaint();
                 }
-                UdpEvent::Error { id, err } => {
+                UdpEvent::BindError { id, err } => {
                     if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
                         socket.error = Some(err.clone());
                     }
+                    self.state.add_system_error(err);
+                }
+                UdpEvent::Error { id: _, err } => {
                     self.state.add_system_error(err);
                 }
                 UdpEvent::MulticastJoined { id, multi_addr, interface_addr } => {
@@ -1925,8 +2205,25 @@ impl eframe::App for MainApp {
                                 (false, None)
                             };
 
+                            let is_dark_status = self.state.is_dark_theme(ui.ctx());
+                            let status_active_color = if is_dark_status {
+                                egui::Color32::from_rgb(100, 255, 100)
+                            } else {
+                                egui::Color32::from_rgb(46, 125, 50)
+                            };
+                            let status_offline_color = if is_dark_status {
+                                egui::Color32::from_rgb(255, 90, 90)
+                            } else {
+                                egui::Color32::from_rgb(211, 47, 47)
+                            };
+                            let status_broadcast_color = if is_dark_status {
+                                egui::Color32::from_rgb(140, 200, 255)
+                            } else {
+                                egui::Color32::from_rgb(25, 118, 210)
+                            };
+
                             if is_listening {
-                                ui.colored_label(egui::Color32::from_rgb(100, 255, 100), self.state.tr("titlebar-status-active"));
+                                ui.colored_label(status_active_color, self.state.tr("titlebar-status-active"));
                                 if let Some(ref addr) = bound_addr {
                                     let mut args = std::collections::HashMap::new();
                                     args.insert(std::borrow::Cow::Borrowed("addr"), addr.clone().into());
@@ -1935,9 +2232,9 @@ impl eframe::App for MainApp {
                                 ui.add_space(10.0);
                                 ui.separator();
                                 ui.add_space(10.0);
-                                ui.colored_label(egui::Color32::from_rgb(140, 200, 255), self.state.tr("statusbar-broadcast"));
+                                ui.colored_label(status_broadcast_color, self.state.tr("statusbar-broadcast"));
                             } else {
-                                ui.colored_label(egui::Color32::from_rgb(255, 90, 90), self.state.tr("titlebar-status-offline"));
+                                ui.colored_label(status_offline_color, self.state.tr("titlebar-status-offline"));
                                 ui.label(self.state.tr("statusbar-not-bound"));
                             }
                             
@@ -1953,7 +2250,7 @@ impl eframe::App for MainApp {
                                 self.state.tr("statusbar-auto-save-disabled")
                             };
                             let auto_save_color = if self.state.auto_save_enabled {
-                                egui::Color32::from_rgb(100, 255, 100)
+                                status_active_color
                             } else {
                                 egui::Color32::from_rgb(150, 150, 150)
                             };
@@ -2324,6 +2621,8 @@ impl eframe::App for MainApp {
                                                 ("ECHONET Lite", 0),
                                                 ("SNMP", 1),
                                                 ("Syslog", 2),
+                                                ("DNS / mDNS", 3),
+                                                ("CoAP", 4),
                                             ];
                                             for (name, val) in &items {
                                                 ui.selectable_value(&mut self.state.settings_selected_proto_tab, *val, *name);
@@ -2376,6 +2675,28 @@ impl eframe::App for MainApp {
                                                 ui.horizontal(|ui| {
                                                     ui.label(self.state.tr("settings-proto-syslog-port"));
                                                     let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.syslog_port).desired_width(100.0));
+                                                    if res.changed() {
+                                                        self.state.sync_preset_ports_order();
+                                                    }
+                                                });
+                                            }
+                                            3 => {
+                                                ui.strong("DNS / mDNS");
+                                                ui.add_space(8.0);
+                                                ui.horizontal(|ui| {
+                                                    ui.label(self.state.tr("settings-proto-dns-port"));
+                                                    let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.dns_port).desired_width(100.0));
+                                                    if res.changed() {
+                                                        self.state.sync_preset_ports_order();
+                                                    }
+                                                });
+                                            }
+                                            4 => {
+                                                ui.strong("CoAP");
+                                                ui.add_space(8.0);
+                                                ui.horizontal(|ui| {
+                                                    ui.label(self.state.tr("settings-proto-coap-port"));
+                                                    let res = ui.add(egui::TextEdit::singleline(&mut self.state.protocol_config.coap_port).desired_width(100.0));
                                                     if res.changed() {
                                                         self.state.sync_preset_ports_order();
                                                     }

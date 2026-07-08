@@ -22,6 +22,7 @@ pub enum UdpEvent {
     Unbound { id: String },
     Sent { id: String, to: SocketAddr, data: Vec<u8>, timestamp: chrono::DateTime<Local>, local_addr: SocketAddr },
     Received { id: String, from: SocketAddr, data: Vec<u8>, timestamp: chrono::DateTime<Local>, local_addr: SocketAddr },
+    BindError { id: String, err: String },
     Error { id: String, err: String },
     MulticastJoined { id: String, multi_addr: String, interface_addr: String },
     MulticastLeft { id: String, multi_addr: String, interface_addr: String },
@@ -137,15 +138,15 @@ impl UdpWorker {
                                             event_sender.send(UdpEvent::Bound { id, addr: bound_addr });
                                         }
                                         Err(e) => {
-                                            event_sender.send(UdpEvent::Error { id, err: format!("Failed to bind: {}", e) });
+                                            event_sender.send(UdpEvent::BindError { id, err: format!("Failed to bind: {}", e) });
                                         }
                                     }
                                 } else {
-                                    event_sender.send(UdpEvent::Error { id, err: format!("No addresses resolved for bind: {}", addr_str) });
+                                    event_sender.send(UdpEvent::BindError { id, err: format!("No addresses resolved for bind: {}", addr_str) });
                                 }
                             }
                             Err(e) => {
-                                event_sender.send(UdpEvent::Error { id, err: format!("Invalid bind address '{}': {}", addr_str, e) });
+                                event_sender.send(UdpEvent::BindError { id, err: format!("Invalid bind address '{}': {}", addr_str, e) });
                             }
                         }
                     }
@@ -154,7 +155,19 @@ impl UdpWorker {
                             match target.to_socket_addrs() {
                                 Ok(mut addrs) => {
                                     if let Some(target_addr) = addrs.next() {
-                                        match socket.send_to(&data, target_addr) {
+                                        let send_res = if data.is_empty() && cfg!(target_os = "macos") {
+                                            // macOS BSD socket hack: sendto with 0-byte fails, but connect + send works.
+                                            socket.connect(target_addr)
+                                                .and_then(|_| socket.send(&data))
+                                                .and_then(|sent| {
+                                                    // Disconnect by connecting to an invalid address/family
+                                                    let _ = socket.connect("0.0.0.0:0");
+                                                    Ok(sent)
+                                                })
+                                        } else {
+                                            socket.send_to(&data, target_addr)
+                                        };
+                                        match send_res {
                                             Ok(_) => {
                                                 let local_addr = socket.local_addr().unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], 0)));
                                                 event_sender.send(UdpEvent::Sent {
