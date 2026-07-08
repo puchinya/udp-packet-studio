@@ -1983,10 +1983,13 @@ impl eframe::App for MainApp {
                     self.state.push_log(entry);
                     ctx.request_repaint();
                 }
-                UdpEvent::Error { id, err } => {
+                UdpEvent::BindError { id, err } => {
                     if let Some(socket) = self.state.sockets.iter_mut().find(|s| s.id == id) {
                         socket.error = Some(err.clone());
                     }
+                    self.state.add_system_error(err);
+                }
+                UdpEvent::Error { id: _, err } => {
                     self.state.add_system_error(err);
                 }
                 UdpEvent::MulticastJoined { id, multi_addr, interface_addr } => {
