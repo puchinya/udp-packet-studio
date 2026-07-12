@@ -20,10 +20,11 @@ get_if_addrs = "0.5.3"
 regex = "1"
 
 [profile.release]
-opt-level = 3
+opt-level = 2
 lto = true
 codegen-units = 1
 panic = "abort"
+strip = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2.7"
